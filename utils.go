@@ -14,14 +14,17 @@
 
 package httpsrv
 
-type Filter func(c *Controller)
+import (
+	"encoding/json"
+)
 
-// Filters is the default set of global filters.
-// It may be set by the application on initialization.
-var DefaultFilters = []Filter{
-	RouterFilter,  // Use the routing table to select the right Action.
-	ParamsFilter,  // Parse parameters into Controller.Params.
-	SessionFilter, // Restore and write the session cookie.
-	I18nFilter,    // Resolve the requested language.
-	ActionInvoker, // Invoke the action.
+func json_encode(v interface{}, indent string) ([]byte, error) {
+	if indent != "" {
+		return json.MarshalIndent(v, "", indent)
+	}
+	return json.Marshal(v)
+}
+
+func json_decode(src []byte, v interface{}) error {
+	return json.Unmarshal(src, &v)
 }

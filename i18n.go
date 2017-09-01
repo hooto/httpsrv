@@ -1,4 +1,4 @@
-// Copyright 2015 lessOS.com, All rights reserved.
+// Copyright 2015 Eryx <evorui аt gmаil dοt cοm>, All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,9 +21,6 @@ import (
 	"os"
 	"regexp"
 	"strings"
-
-	"github.com/lessos/lessgo/logger"
-	"github.com/lessos/lessgo/utils"
 )
 
 var (
@@ -64,8 +61,8 @@ func i18nLoadMessages(file string) {
 		return
 	}
 
-	if err := utils.JsonDecode(str, &cfg); err != nil {
-		logger.Print("error", "Format Error: "+err.Error())
+	if err := json_decode([]byte(str), &cfg); err != nil {
+		fmt.Println("Format Error: " + err.Error())
 		return
 	}
 

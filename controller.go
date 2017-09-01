@@ -1,4 +1,4 @@
-// Copyright 2015 lessOS.com, All rights reserved.
+// Copyright 2015 Eryx <evorui аt gmаil dοt cοm>, All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,8 +21,6 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-
-	"github.com/lessos/lessgo/encoding/json"
 )
 
 type Controller struct {
@@ -227,7 +225,7 @@ func (c *Controller) RenderJsonIndent(obj interface{}, indent string) {
 	c.Response.Out.Header().Set("Access-Control-Allow-Origin", "*")
 	c.Response.Out.Header().Set("Content-type", "application/json")
 
-	if js, err := json.Encode(obj, indent); err == nil {
+	if js, err := json_encode(obj, indent); err == nil {
 		c.Response.Out.Header().Set("Content-Length", strconv.Itoa(len(js)))
 		c.Response.Out.Write(js)
 	}

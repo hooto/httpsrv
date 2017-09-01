@@ -1,12 +1,13 @@
-## lessgo/httpsrv
-lessgo/httpsrv is a Lightweight, Modular, High Performance MVC web framework.
+## hooto/httpsrv
+
+hooto/httpsrv is a Lightweight, Modular, High Performance MVC web framework in Golang.
 
 ## Quick Start
 
 Install httpsrv framework
 
 ```shell
-go get -u github.com/lessos/lessgo/httpsrv
+go get -u github.com/hooto/httpsrv
 
 ```
 
@@ -16,7 +17,7 @@ first hello world demo
 package main
 
 import (
-    "github.com/lessos/lessgo/httpsrv"
+    "github.com/hooto/httpsrv"
 )
 
 type Index struct {
@@ -45,4 +46,7 @@ func main() {
     httpsrv.GlobalService.Start()
 }
 ```
+
+## Licensing
+Licensed under the Apache License, Version 2.0
 

@@ -1,4 +1,4 @@
-// Copyright 2015 lessOS.com, All rights reserved.
+// Copyright 2015 Eryx <evorui аt gmаil dοt cοm>, All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,8 +22,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-
-	"github.com/lessos/lessgo/encoding/json"
 )
 
 type Request struct {
@@ -74,7 +72,7 @@ func (req *Request) JsonDecode(obj interface{}) error {
 		return fmt.Errorf("No Data Found")
 	}
 
-	return json.Decode(req.RawBody, obj)
+	return json_decode(req.RawBody, obj)
 }
 
 // Get the content type.

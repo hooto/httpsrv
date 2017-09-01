@@ -1,4 +1,4 @@
-// Copyright 2015 lessOS.com, All rights reserved.
+// Copyright 2015 Eryx <evorui аt gmаil dοt cοm>, All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lessos/lessgo/deps/go.net/websocket"
+	"github.com/hooto/httpsrv/internal/go.net/websocket"
 	"github.com/lessos/lessgo/logger"
 )
 
