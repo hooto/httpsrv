@@ -26,8 +26,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hooto/httpsrv/internal/go.net/websocket"
-	"github.com/lessos/lessgo/logger"
+	"github.com/hooto/hlog4g/hlog"
+	"github.com/hooto/httpsrv/deps/go.net/websocket"
 )
 
 type Service struct {
@@ -175,7 +175,7 @@ func (s *Service) Start() error {
 	}
 
 	if network != "unix" && network != "tcp" {
-		logger.Printf("fatal", "lessgo/httpsrv: Unknown Network %s", network)
+		hlog.Printf("fatal", "lessgo/httpsrv: Unknown Network %s", network)
 		return nil
 	}
 
@@ -203,12 +203,12 @@ func (s *Service) Start() error {
 
 		if v.handler != nil {
 			srvmux.Handle(v.base, *v.handler)
-			logger.Printf("info", "lessgo/httpsrv: reg handler on %s", v.base)
+			hlog.Printf("info", "lessgo/httpsrv: reg handler on %s", v.base)
 		}
 
 		if v.handler_func != nil {
 			srvmux.HandleFunc(v.base, *v.handler_func)
-			logger.Printf("info", "lessgo/httpsrv: reg handler func on %s", v.base)
+			hlog.Printf("info", "lessgo/httpsrv: reg handler func on %s", v.base)
 		}
 	}
 
@@ -227,11 +227,11 @@ func (s *Service) Start() error {
 	//
 	listener, err := net.Listen(network, localAddress)
 	if err != nil {
-		logger.Printf("fatal", "lessgo/httpsrv: net.Listen error %v", err)
+		hlog.Printf("fatal", "lessgo/httpsrv: net.Listen error %v", err)
 		s.err = err
 		return nil
 	}
-	logger.Printf("info", "lessgo/httpsrv: listening on %s/%s", network, localAddress)
+	hlog.Printf("info", "lessgo/httpsrv: listening on %s/%s", network, localAddress)
 
 	if network == "unix" {
 		os.Chmod(localAddress, 0770)
@@ -239,7 +239,7 @@ func (s *Service) Start() error {
 
 	//
 	if err := s.server.Serve(listener); err != nil {
-		logger.Printf("fatal", "lessgo/httpsrv: server.Serve error %v", err)
+		hlog.Printf("fatal", "lessgo/httpsrv: server.Serve error %v", err)
 		s.err = err
 	}
 
@@ -272,7 +272,7 @@ func (s *Service) handleInternal(w http.ResponseWriter, r *http.Request, ws *web
 	defer func() {
 
 		// if err := recover(); err != nil {
-		// 	logger.Printf("error", "handleInternal Panic on %s", err)
+		// 	hlog.Printf("error", "handleInternal Panic on %s", err)
 		// }
 
 		r.Body.Close()

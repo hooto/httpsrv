@@ -17,7 +17,7 @@ package httpsrv
 import (
 	"errors"
 
-	"github.com/hooto/httpsrv/internal/go.net/websocket"
+	"github.com/hooto/httpsrv/deps/go.net/websocket"
 )
 
 var (

@@ -1,6 +1,6 @@
-## hooto/httpsrv
+## httpsrv
 
-hooto/httpsrv is a Lightweight, Modular, High Performance MVC web framework in Golang.
+httpsrv is a Lightweight, Modular, High Performance MVC web framework for the Go language.
 
 ## Quick Start
 
