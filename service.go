@@ -15,6 +15,7 @@
 package httpsrv
 
 import (
+	"errors"
 	"fmt"
 	"html/template"
 	"net"
@@ -176,7 +177,7 @@ func (s *Service) Start() error {
 
 	if network != "unix" && network != "tcp" {
 		hlog.Printf("fatal", "lessgo/httpsrv: Unknown Network %s", network)
-		return nil
+		return errors.New("invalid network " + network)
 	}
 
 	//
@@ -229,7 +230,7 @@ func (s *Service) Start() error {
 	if err != nil {
 		hlog.Printf("fatal", "lessgo/httpsrv: net.Listen error %v", err)
 		s.err = err
-		return nil
+		return err
 	}
 	hlog.Printf("info", "lessgo/httpsrv: listening on %s/%s", network, localAddress)
 
