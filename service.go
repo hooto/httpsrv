@@ -23,6 +23,7 @@ import (
 	"net/rpc"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -144,6 +145,10 @@ func (s *Service) ModuleRegister(baseuri string, mod Module) {
 	s.TemplateLoader.Set(mod.name, mod.viewpaths)
 
 	s.modules = append(s.modules, set)
+
+	sort.Slice(s.modules, func(i, j int) bool {
+		return strings.Compare(s.modules[i].baseuri, s.modules[j].baseuri) > 0
+	})
 }
 
 func (s *Service) Error() error {
