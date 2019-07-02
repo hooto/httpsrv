@@ -158,6 +158,9 @@ func RouterFilter(c *Controller) {
 
 		c.mod_name = mod.name
 		c.mod_urlbase = mod.baseuri
+		if rtlen > 3 {
+			c.Request.UrlPathExtra = strings.Join(rt[3:], "/")
+		}
 
 		ctrl, ok := mod.controllers[c.Name]
 		if !ok {

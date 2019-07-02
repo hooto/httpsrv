@@ -30,6 +30,7 @@ type Request struct {
 	AcceptLanguage []AcceptLanguage
 	Locale         string
 	RequestPath    string
+	UrlPathExtra   string
 	RawBody        []byte
 	WebSocket      *WebSocket
 }
