@@ -2,6 +2,9 @@
 
 httpsrv is a Lightweight, Modular, High Performance MVC web framework for the Go language.
 
+Documents:
+* 中文文档 [https://www.hooto.com/gdoc/view/hooto-httpsrv/](https://www.hooto.com/gdoc/view/hooto-httpsrv/)
+
 ## Quick Start
 
 Install httpsrv framework
@@ -28,19 +31,25 @@ func (c Index) IndexAction() {
     c.RenderString("hello world")
 }
 
+// init one module
+func NewModule() httpsrv.Module {
+
+	module := httpsrv.NewModule("default")
+
+	//register controller to module
+	module.ControllerRegister(new(Index))
+
+	return module
+}
+
+
 func main() {
 
-    // init one module
-    module := httpsrv.NewModule("default")
-    
-    // register controller to module
-    module.ControllerRegister(new(Index))
-
     // register module to httpsrv
-    httpsrv.GlobalService.ModuleRegister("/", module)
+    httpsrv.GlobalService.ModuleRegister("/", NewModule)
 
-    // listening on port 18080
-    httpsrv.GlobalService.Config.HttpPort = 18080
+    // listening on port 8080
+    httpsrv.GlobalService.Config.HttpPort = 8080
 
     // start
     httpsrv.GlobalService.Start()
