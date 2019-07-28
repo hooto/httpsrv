@@ -131,16 +131,16 @@ I 2019-07-13 17:21:37.644743 service.go:240] lessgo/httpsrv: listening on tcp/0.
 
 httpsrv 是纯粹精简的 http 框架，只封装 http request/response 有关的业务常用接口，对于 Web 开发中涉及的 Model, ORM, Cache 等业务中间件没有内置提供，而是根据需求引用第三方库.
 
-* [https://github.com/lynkdb/mysqlgo](https://github.com/lynkdb/mysqlgo) Go client for MySQL
-* [https://github.com/lynkdb/pgsqlgo](https://github.com/lynkdb/pgsqlgo) Go client for PostgreSQL
-* [https://github.com/lynkdb/redisgo](https://github.com/lynkdb/redisgo) Go client for Redis
-* [https://github.com/lynkdb/ssdbgo](https://github.com/lynkdb/ssdbgo) Go client for SSDB
-* [https://github.com/lynkdb/kvgo](https://github.com/lynkdb/kvgo) An embedded Key-Value database library for Go language
-* [https://github.com/hooto/hlog4g](https://github.com/hooto/hlog4g) Log library for Golang
-* [https://github.com/hooto/hini4g](https://github.com/hooto/hini4g) INI file read library for Golang
-* [https://github.com/hooto/hflag4g](https://github.com/hooto/hflag4g) commandline flags processing library for Golang
-* [https://github.com/hooto/hlang4g](https://github.com/hooto/hlang4g) i18n library for golang
-* [https://github.com/hooto/hcaptcha4g](https://github.com/hooto/hcaptcha4g) Captcha library for Golang
+* Go client for MySQL [https://github.com/lynkdb/mysqlgo](https://github.com/lynkdb/mysqlgo)
+* Go client for PostgreSQL [https://github.com/lynkdb/pgsqlgo](https://github.com/lynkdb/pgsqlgo)
+* Go client for Redis [https://github.com/lynkdb/redisgo](https://github.com/lynkdb/redisgo)
+* Go client for SSDB [https://github.com/lynkdb/ssdbgo](https://github.com/lynkdb/ssdbgo)
+* An embedded Key-Value database library for Go language [https://github.com/lynkdb/kvgo](https://github.com/lynkdb/kvgo)
+* Log library for Golang [https://github.com/hooto/hlog4g](https://github.com/hooto/hlog4g)
+* INI file read library for Golang [https://github.com/hooto/hini4g](https://github.com/hooto/hini4g)
+* Commandline flags processing library for Golang [https://github.com/hooto/hflag4g](https://github.com/hooto/hflag4g)
+* i18n library for golang [https://github.com/hooto/hlang4g](https://github.com/hooto/hlang4g)
+* Captcha library for Golang [https://github.com/hooto/hcaptcha4g](https://github.com/hooto/hcaptcha4g)
 
 
 以上推荐的依赖库大多纯粹精简, Go 编程语言生态系统里包含大量优秀项目, 推荐一个项目导航清单供参考: 
