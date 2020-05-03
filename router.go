@@ -45,7 +45,11 @@ type Route struct {
 
 func RouterFilter(c *Controller) {
 
-	urlpath := strings.Trim(filepath.Clean(c.Request.URL.Path), "/")
+	urlpath := filepath.Clean(c.Request.URL.Path)
+	if runtime.GOOS == "windows" {
+		urlpath = strings.Replace(urlpath, "\\", "/", -1)
+	}
+	urlpath = strings.Trim(urlpath, "/")
 
 	if c.service.Config.UrlBasePath != "" {
 		urlpath = strings.TrimPrefix(strings.TrimPrefix(urlpath, c.service.Config.UrlBasePath), "/")
