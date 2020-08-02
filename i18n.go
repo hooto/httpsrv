@@ -30,13 +30,13 @@ var (
 )
 
 type i18nConfig struct {
-	Locale string `json:"locale"`
+	Locale string `json:"locale" toml:"locale"`
 	Data   []i18nConfigItem
 }
 
 type i18nConfigItem struct {
-	Key string `json:"key"`
-	Val string `json:"val"`
+	Key string `json:"key" toml:"key"`
+	Val string `json:"val" toml:"val"`
 }
 
 func I18nFilter(c *Controller) {

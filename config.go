@@ -15,12 +15,12 @@
 package httpsrv
 
 type Config struct {
-	HttpAddr         string `json:"http_addr,omitempty"` // e.g. "127.0.0.1", "unix:/tmp/app.sock"
-	HttpPort         uint16 `json:"http_port,omitempty"` // e.g. 8080
-	HttpTimeout      uint16 `json:"http_timeout,omitempty"`
-	UrlBasePath      string `json:"url_base_path,omitempty"`
-	CookieKeyLocale  string `json:"cookie_key_locale,omitempty"`
-	CookieKeySession string `json:"cookie_key_session,omitempty"`
+	HttpAddr         string `json:"http_addr,omitempty" toml:"http_addr,omitempty"` // e.g. "127.0.0.1", "unix:/tmp/app.sock"
+	HttpPort         uint16 `json:"http_port,omitempty" toml:"http_port,omitempty"` // e.g. 8080
+	HttpTimeout      uint16 `json:"http_timeout,omitempty" toml:"http_timeout,omitempty"`
+	UrlBasePath      string `json:"url_base_path,omitempty" toml:"url_base_path,omitempty"`
+	CookieKeyLocale  string `json:"cookie_key_locale,omitempty" toml:"cookie_key_locale,omitempty"`
+	CookieKeySession string `json:"cookie_key_session,omitempty" toml:"cookie_key_session,omitempty"`
 }
 
 func (c *Config) TemplateFuncRegister(name string, fn interface{}) {
