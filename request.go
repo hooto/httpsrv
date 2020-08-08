@@ -73,7 +73,7 @@ func (req *Request) JsonDecode(obj interface{}) error {
 		return fmt.Errorf("No Data Found")
 	}
 
-	return json_decode(req.RawBody, obj)
+	return jsonDecode(req.RawBody, obj)
 }
 
 // Get the content type.

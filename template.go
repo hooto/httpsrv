@@ -15,13 +15,13 @@
 package httpsrv
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"html/template"
 	"io"
-	"io/ioutil"
-	"os"
-	"path/filepath"
+	"net/http"
+	"path"
 	"strings"
 	"sync"
 )
@@ -59,7 +59,7 @@ func (loader *TemplateLoader) Clean(modname string) {
 	}
 }
 
-func (loader *TemplateLoader) Set(modname string, viewpaths []string) {
+func (loader *TemplateLoader) Set(modname string, viewpaths []string, viewfss []http.FileSystem) {
 
 	tlock.Lock()
 	defer tlock.Unlock()
@@ -69,80 +69,97 @@ func (loader *TemplateLoader) Set(modname string, viewpaths []string) {
 		return
 	}
 
-	for _, baseDir := range viewpaths {
+	addTemplate := func(templateFile, fileStr string) error {
 
-		_ = filepath.Walk(baseDir, func(path string, info os.FileInfo, err error) error {
+		templateName := strings.ToLower(strings.Trim(templateFile, "/"))
 
-			if err != nil {
-				return nil
+		if _, ok := loader.templatePaths[modname+"."+templateName]; ok {
+			return nil
+		}
+
+		var err error
+
+		if loaderTemplateSet == nil {
+
+			func() {
+
+				defer func() {
+					if e := recover(); e != nil {
+						err = errors.New("Panic (Template Loader)")
+					}
+				}()
+
+				loaderTemplateSet = template.New(templateName).Funcs(TemplateFuncs)
+
+				if _, err = loaderTemplateSet.Parse(fileStr); err == nil {
+					loader.templateSets[modname] = loaderTemplateSet
+				}
+			}()
+
+		} else {
+
+			_, err = loaderTemplateSet.New(templateName).Parse(fileStr)
+		}
+
+		if err == nil {
+			loader.templatePaths[modname+"."+templateName] = templateFile
+		}
+
+		return err
+	}
+
+	var hfsWalk func(fs http.FileSystem, dir string) error
+
+	hfsWalk = func(fs http.FileSystem, dir string) error {
+
+		fp, err := fs.Open(dir)
+		if err != nil {
+			return err
+		}
+		defer fp.Close()
+
+		st, err := fp.Stat()
+		if err != nil {
+			return err
+		}
+
+		if !st.IsDir() {
+			if strings.HasSuffix(dir, ".tpl") {
+				var buf bytes.Buffer
+				_, err = io.Copy(&buf, fp)
+				if err != nil {
+					return err
+				}
+				addTemplate(dir, buf.String())
+			}
+			return nil
+		}
+
+		nodes, err := fp.Readdir(-1)
+		if err != nil {
+			return err
+		}
+
+		for _, n := range nodes {
+
+			if n.Name() == "." || n.Name() == ".." {
+				continue
 			}
 
-			if info.IsDir() {
-				return nil
-			}
-
-			var fileStr string
-
-			addTemplate := func(templateName string) (err error) {
-
-				if _, ok := loader.templatePaths[modname+"."+templateName]; ok {
-					return nil
-				}
-
-				loader.templatePaths[modname+"."+templateName] = path
-
-				// Load the file if we haven't already
-				if fileStr == "" {
-
-					fileBytes, err := ioutil.ReadFile(path)
-					if err != nil {
-						return nil
-					}
-
-					fileStr = string(fileBytes)
-				}
-
-				if loaderTemplateSet == nil {
-
-					var funcError error
-
-					func() {
-
-						defer func() {
-							if err := recover(); err != nil {
-								funcError = errors.New("Panic (Template Loader)")
-							}
-						}()
-
-						loaderTemplateSet = template.New(templateName).Funcs(TemplateFuncs)
-
-						if _, err := loaderTemplateSet.Parse(fileStr); err == nil {
-							loader.templateSets[modname] = loaderTemplateSet
-						}
-					}()
-
-					if funcError != nil {
-						return funcError
-					}
-
-				} else {
-
-					_, err = loaderTemplateSet.New(templateName).Parse(fileStr)
-				}
-
+			if err = hfsWalk(fs, path.Join(dir, n.Name())); err != nil {
 				return err
 			}
+		}
 
-			templateName := path[len(baseDir)+1:]
+		return nil
+	}
 
-			// Lower case the file name for case-insensitive matching
-			lowerCaseTemplateName := strings.ToLower(templateName)
+	for _, baseDir := range viewpaths {
+		hfsWalk(http.Dir(baseDir), "/")
+	}
 
-			_ = addTemplate(templateName)
-			_ = addTemplate(lowerCaseTemplateName)
-
-			return nil
-		})
+	for _, fs := range viewfss {
+		hfsWalk(fs, "/")
 	}
 }
 
@@ -152,6 +169,8 @@ func (loader *TemplateLoader) Template(modname, tplname string) (iTemplate, erro
 	if !ok || set == nil {
 		return nil, fmt.Errorf("Template %s not found.", tplname)
 	}
+
+	tplname = strings.ToLower(tplname)
 
 	tmpl := set.Lookup(tplname)
 	if tmpl == nil {

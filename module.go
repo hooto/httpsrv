@@ -15,6 +15,7 @@
 package httpsrv
 
 import (
+	"net/http"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -35,15 +36,13 @@ type Module struct {
 	routes      []Route
 	controllers map[string]*controllerType
 	viewpaths   []string
+	viewfss     []http.FileSystem
 }
 
 func NewModule(name string) Module {
-
 	return Module{
 		name:        name,
-		routes:      []Route{},
 		controllers: make(map[string]*controllerType),
-		viewpaths:   []string{},
 	}
 }
 
@@ -105,6 +104,26 @@ func (m *Module) TemplatePathSet(paths ...string) {
 
 		if !added {
 			m.viewpaths = append(m.viewpaths, path)
+		}
+	}
+}
+
+func (m *Module) TemplateFileSystemSet(fss ...http.FileSystem) {
+
+	for _, fs := range fss {
+
+		added := false
+
+		for _, prev := range m.viewfss {
+
+			if fs == prev {
+				added = true
+				break
+			}
+		}
+
+		if !added {
+			m.viewfss = append(m.viewfss, fs)
 		}
 	}
 }

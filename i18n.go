@@ -21,6 +21,8 @@ import (
 	"os"
 	"regexp"
 	"strings"
+
+	"github.com/hooto/hlog4g/hlog"
 )
 
 var (
@@ -61,8 +63,8 @@ func i18nLoadMessages(file string) {
 		return
 	}
 
-	if err := json_decode([]byte(str), &cfg); err != nil {
-		fmt.Println("Format Error: " + err.Error())
+	if err := jsonDecode([]byte(str), &cfg); err != nil {
+		hlog.Printf("warn", "httpsrv/lang setup err %s", err.Error())
 		return
 	}
 

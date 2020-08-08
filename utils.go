@@ -18,13 +18,13 @@ import (
 	"encoding/json"
 )
 
-func json_encode(v interface{}, indent string) ([]byte, error) {
+func jsonEncode(v interface{}, indent string) ([]byte, error) {
 	if indent != "" {
 		return json.MarshalIndent(v, "", indent)
 	}
 	return json.Marshal(v)
 }
 
-func json_decode(src []byte, v interface{}) error {
+func jsonDecode(src []byte, v interface{}) error {
 	return json.Unmarshal(src, &v)
 }

@@ -42,6 +42,7 @@ type Route struct {
 	Params     map[string]string // e.g. {id: 123}
 	tree       []string
 	treelen    int
+	BinFs      http.FileSystem
 }
 
 func RouterFilter(c *Controller) {
@@ -81,6 +82,20 @@ func RouterFilter(c *Controller) {
 		for _, route := range mod.routes {
 
 			if route.Type == RouteTypeStatic && strings.HasPrefix(urlpath, route.Path) {
+
+				if route.BinFs != nil {
+					if fp, err := route.BinFs.Open(urlpath[len(route.Path):]); err == nil {
+						defer fp.Close()
+						st, err := fp.Stat()
+						if err == nil {
+							http.ServeContent(c.Response.Out, c.Request.Request,
+								st.Name(), st.ModTime(), fp)
+							return
+						}
+					}
+					http.NotFound(c.Response.Out, c.Request.Request)
+					return
+				}
 
 				file := route.StaticPath + "/" + urlpath[len(route.Path):]
 				finfo, err := os.Stat(file)

@@ -117,6 +117,7 @@ func (s *Service) ModuleRegister(baseuri string, mod Module) {
 		name:        mod.name,
 		baseuri:     strings.Trim(baseuri, "/"),
 		viewpaths:   mod.viewpaths,
+		viewfss:     mod.viewfss,
 		controllers: mod.controllers,
 	}
 
@@ -142,7 +143,7 @@ func (s *Service) ModuleRegister(baseuri string, mod Module) {
 		}
 	}
 
-	s.TemplateLoader.Set(mod.name, mod.viewpaths)
+	s.TemplateLoader.Set(mod.name, mod.viewpaths, mod.viewfss)
 
 	s.modules = append(s.modules, set)
 

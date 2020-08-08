@@ -225,7 +225,7 @@ func (c *Controller) RenderJsonIndent(obj interface{}, indent string) {
 	c.Response.Out.Header().Set("Access-Control-Allow-Origin", "*")
 	c.Response.Out.Header().Set("Content-type", "application/json")
 
-	if js, err := json_encode(obj, indent); err == nil {
+	if js, err := jsonEncode(obj, indent); err == nil {
 		c.Response.Out.Header().Set("Content-Length", strconv.Itoa(len(js)))
 		c.Response.Out.Write(js)
 	}

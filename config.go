@@ -14,6 +14,8 @@
 
 package httpsrv
 
+const Version = "0.9.1"
+
 type Config struct {
 	HttpAddr         string `json:"http_addr,omitempty" toml:"http_addr,omitempty"` // e.g. "127.0.0.1", "unix:/tmp/app.sock"
 	HttpPort         uint16 `json:"http_port,omitempty" toml:"http_port,omitempty"` // e.g. 8080
