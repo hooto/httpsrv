@@ -176,8 +176,8 @@ func RouterFilter(c *Controller) {
 			}
 		}
 
-		c.mod_name = mod.name
-		c.mod_urlbase = mod.baseuri
+		c.modName = mod.name
+		c.modUrlBase = mod.baseuri
 		if rtlen > 3 {
 			c.Request.UrlPathExtra = strings.Join(rt[3:], "/")
 		}
@@ -189,7 +189,7 @@ func RouterFilter(c *Controller) {
 
 			if ctrl, ok = mod.controllers[c.Name]; !ok {
 
-				c.mod_name = "default"
+				c.modName = "default"
 
 				if ctrl, ok = mod.controllers[c.Name]; !ok {
 					return

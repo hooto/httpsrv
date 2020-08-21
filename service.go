@@ -278,9 +278,9 @@ func (s *Service) handleInternal(w http.ResponseWriter, r *http.Request, ws *web
 
 	defer func() {
 
-		// if err := recover(); err != nil {
-		// 	hlog.Printf("error", "handleInternal Panic on %s", err)
-		// }
+		if err := recover(); err != nil {
+			hlog.Printf("error", "handleInternal Panic on %s", err)
+		}
 
 		r.Body.Close()
 	}()

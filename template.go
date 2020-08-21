@@ -24,13 +24,15 @@ import (
 	"path"
 	"strings"
 	"sync"
-)
 
-var tlock sync.Mutex
+	"github.com/hooto/hlog4g/hlog"
+)
 
 // This object handles loading and parsing of templates.
 // Everything below the application's views directory is treated as a template.
 type TemplateLoader struct {
+	mu sync.RWMutex
+
 	// Map from template name to the path from whence it was loaded.
 	templatePaths map[string]string
 
@@ -38,42 +40,39 @@ type TemplateLoader struct {
 	templateSets map[string]*template.Template
 }
 
-type iTemplate interface {
-	Render(wr io.Writer, arg interface{}) error
-}
+func (it *TemplateLoader) Clean(modName string) {
 
-func (loader *TemplateLoader) Clean(modname string) {
+	it.mu.Lock()
+	defer it.mu.Unlock()
 
-	tlock.Lock()
-	defer tlock.Unlock()
-
-	if _, ok := loader.templateSets[modname]; ok {
-		delete(loader.templateSets, modname)
+	if _, ok := it.templateSets[modName]; ok {
+		delete(it.templateSets, modName)
 	}
 
-	for k := range loader.templatePaths {
+	for k := range it.templatePaths {
 
-		if strings.HasPrefix(k, modname+".") {
-			delete(loader.templatePaths, k)
+		if strings.HasPrefix(k, modName+".") {
+			delete(it.templatePaths, k)
 		}
 	}
 }
 
-func (loader *TemplateLoader) Set(modname string, viewpaths []string, viewfss []http.FileSystem) {
+func (it *TemplateLoader) Set(modName string, viewpaths []string, viewfss []http.FileSystem) {
 
-	tlock.Lock()
-	defer tlock.Unlock()
+	it.mu.Lock()
+	defer it.mu.Unlock()
 
-	loaderTemplateSet, ok := loader.templateSets[modname]
+	loaderTemplateSet, ok := it.templateSets[modName]
 	if ok {
 		return
 	}
 
 	addTemplate := func(templateFile, fileStr string) error {
 
-		templateName := strings.ToLower(strings.Trim(templateFile, "/"))
+		templateName := strings.Trim(templateFile, "/")
+		templateNameL := strings.ToLower(templateName)
 
-		if _, ok := loader.templatePaths[modname+"."+templateName]; ok {
+		if _, ok := it.templatePaths[modName+"."+templateNameL]; ok {
 			return nil
 		}
 
@@ -92,7 +91,7 @@ func (loader *TemplateLoader) Set(modname string, viewpaths []string, viewfss []
 				loaderTemplateSet = template.New(templateName).Funcs(TemplateFuncs)
 
 				if _, err = loaderTemplateSet.Parse(fileStr); err == nil {
-					loader.templateSets[modname] = loaderTemplateSet
+					it.templateSets[modName] = loaderTemplateSet
 				}
 			}()
 
@@ -102,7 +101,14 @@ func (loader *TemplateLoader) Set(modname string, viewpaths []string, viewfss []
 		}
 
 		if err == nil {
-			loader.templatePaths[modname+"."+templateName] = templateFile
+
+			if templateNameL != templateName {
+				loaderTemplateSet.New(templateNameL).Parse(fileStr)
+			}
+
+			it.templatePaths[modName+"."+templateNameL] = templateFile
+		} else {
+			hlog.Printf("warn", "template (%s/%s) parse err %s", modName, templateFile, err.Error())
 		}
 
 		return err
@@ -126,8 +132,7 @@ func (loader *TemplateLoader) Set(modname string, viewpaths []string, viewfss []
 		if !st.IsDir() {
 			if strings.HasSuffix(dir, ".tpl") {
 				var buf bytes.Buffer
-				_, err = io.Copy(&buf, fp)
-				if err != nil {
+				if _, err = io.Copy(&buf, fp); err != nil {
 					return err
 				}
 				addTemplate(dir, buf.String())
@@ -163,37 +168,31 @@ func (loader *TemplateLoader) Set(modname string, viewpaths []string, viewfss []
 	}
 }
 
-func (loader *TemplateLoader) Template(modname, tplname string) (iTemplate, error) {
+func (it *TemplateLoader) Render(wr io.Writer, modName, tplPath string, arg interface{}) error {
 
-	set, ok := loader.templateSets[modname]
-	if !ok || set == nil {
-		return nil, fmt.Errorf("Template %s not found.", tplname)
-	}
-
-	tplname = strings.ToLower(tplname)
-
-	tmpl := set.Lookup(tplname)
-	if tmpl == nil {
-		return nil, fmt.Errorf("Template %s:%s not found.", modname, tplname)
-	}
-
-	return goTemplate{tmpl, loader}, nil
-}
-
-// Adapter for Go Templates.
-type goTemplate struct {
-	*template.Template
-	loader *TemplateLoader
-}
-
-// return a 'httpsrv.goTemplate' from Go's template.
-func (gotmpl goTemplate) Render(wr io.Writer, arg interface{}) error {
+	it.mu.RLock()
+	defer it.mu.RUnlock()
 
 	defer func() {
 		if err := recover(); err != nil {
-			//
+			hlog.Printf("debug", "template (%s/%s) render err %v", modName, tplPath, err)
 		}
 	}()
 
-	return gotmpl.Execute(wr, arg)
+	tplSet, ok := it.templateSets[modName]
+	if !ok || tplSet == nil {
+		return fmt.Errorf("module %s not found", modName)
+	}
+	// return tplSet.ExecuteTemplate(wr, tplPath, arg)
+
+	tpl := tplSet.Lookup(tplPath)
+	if tpl == nil {
+		if tplPathl := strings.ToLower(tplPath); tplPathl != tplPath {
+			tpl = tplSet.Lookup(tplPathl)
+		}
+		if tpl == nil {
+			return fmt.Errorf("template %s/%s not found", modName, tplPath)
+		}
+	}
+	return tpl.Execute(wr, arg)
 }

@@ -33,8 +33,8 @@ type Controller struct {
 	AutoRender    bool
 	Data          map[string]interface{}
 	appController interface{} // The controller that was instantiated.
-	mod_name      string
-	mod_urlbase   string
+	modName       string
+	modUrlBase    string
 	service       *Service
 }
 
@@ -63,7 +63,7 @@ func NewController(srv *Service, req *Request, resp *Response) *Controller {
 }
 
 var (
-	gen_args = []reflect.Value{}
+	genArgs = []reflect.Value{}
 )
 
 func ActionInvoker(c *Controller) {
@@ -77,7 +77,7 @@ func ActionInvoker(c *Controller) {
 	execController := reflect.ValueOf(c.appController).MethodByName("Init")
 	if execController.Kind() != reflect.Invalid {
 
-		if iv := execController.Call(gen_args)[0]; iv.Kind() == reflect.Int {
+		if iv := execController.Call(genArgs)[0]; iv.Kind() == reflect.Int {
 
 			if iv.Int() != 0 {
 				return
@@ -98,9 +98,9 @@ func ActionInvoker(c *Controller) {
 
 	//
 	if execController.Type().IsVariadic() {
-		execController.CallSlice(gen_args)
+		execController.CallSlice(genArgs)
 	} else {
-		execController.Call(gen_args)
+		execController.Call(genArgs)
 	}
 
 	if c.AutoRender {
@@ -112,13 +112,13 @@ func (c *Controller) Render(args ...interface{}) {
 
 	c.AutoRender = false
 
-	mod_name, templatePath := c.mod_name, c.Name+"/"+c.ActionName+".tpl"
+	modName, templatePath := c.modName, c.Name+"/"+c.ActionName+".tpl"
 
 	if len(args) == 2 &&
 		reflect.TypeOf(args[0]).Kind() == reflect.String &&
 		reflect.TypeOf(args[1]).Kind() == reflect.String {
 
-		mod_name, templatePath = args[0].(string), args[1].(string)
+		modName, templatePath = args[0].(string), args[1].(string)
 
 	} else if len(args) == 1 &&
 		reflect.TypeOf(args[0]).Kind() == reflect.String {
@@ -129,24 +129,18 @@ func (c *Controller) Render(args ...interface{}) {
 	// Handle panics when rendering templates.
 	defer func() {
 		if err := recover(); err != nil {
-
+			// println(err)
 		}
 	}()
 
-	template, err := c.service.TemplateLoader.Template(mod_name, templatePath)
+	err := c.service.TemplateLoader.Render(c.Response.Out, modName, templatePath, c.Data)
 	if err != nil {
-		return //c.RenderError(err)
-	}
-
-	if c.Response.Status == 0 {
+		c.Response.Status = http.StatusBadRequest
+	} else {
 		c.Response.Status = http.StatusOK
 	}
-	c.Response.WriteHeader(c.Response.Status, "text/html; charset=utf-8")
 
-	out := io.Writer(c.Response.Out)
-	if err = template.Render(out, c.Data); err != nil {
-		println(err)
-	}
+	c.Response.WriteHeader(c.Response.Status, "text/html; charset=utf-8")
 }
 
 func (c *Controller) RenderError(status int, msg string) {
@@ -182,7 +176,7 @@ func (c *Controller) UrlBase(path string) string {
 }
 
 func (c *Controller) UrlModuleBase(path string) string {
-	return c.UrlBase(c.mod_urlbase + "/" + path)
+	return c.UrlBase(c.modUrlBase + "/" + path)
 }
 
 func (c *Controller) Redirect(url string) {
