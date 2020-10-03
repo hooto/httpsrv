@@ -55,9 +55,9 @@ var (
 	GlobalService = NewService()
 )
 
-func NewService() Service {
+func NewService() *Service {
 
-	return Service{
+	return &Service{
 
 		Config: Config{
 			HttpAddr:         "0.0.0.0",
