@@ -46,7 +46,7 @@ func NewModule() httpsrv.Module {
 func main() {
 
     // register module to httpsrv
-    httpsrv.GlobalService.ModuleRegister("/", NewModule)
+    httpsrv.GlobalService.ModuleRegister("/", NewModule())
 
     // listening on port 8080
     httpsrv.GlobalService.Config.HttpPort = 8080
