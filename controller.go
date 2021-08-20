@@ -15,6 +15,8 @@
 package httpsrv
 
 import (
+	"bytes"
+	"compress/gzip"
 	"io"
 	"net/http"
 	"path/filepath"
@@ -220,9 +222,31 @@ func (c *Controller) RenderJsonIndent(obj interface{}, indent string) {
 	c.Response.Out.Header().Set("Content-type", "application/json")
 
 	if js, err := jsonEncode(obj, indent); err == nil {
-		c.Response.Out.Header().Set("Content-Length", strconv.Itoa(len(js)))
-		c.Response.Out.Write(js)
+		c.responseWrite(js)
 	}
+}
+
+func (c *Controller) responseWrite(b []byte) {
+	if c.service.Config.CompressResponse {
+		if strings.Contains(c.Request.Header.Get("Accept-Encoding"), "gzip") {
+			var (
+				buf bytes.Buffer
+				w   = gzip.NewWriter(&buf)
+			)
+			defer w.Close()
+
+			w.Write(b)
+			w.Flush()
+			b = buf.Bytes()
+
+			c.Response.Out.Header().Set("Content-Encoding", "gzip")
+			c.Response.Out.Header().Set("Content-Length", strconv.Itoa(len(b)))
+			c.Response.Out.Write(b)
+			return
+		}
+	}
+	c.Response.Out.Header().Set("Content-Length", strconv.Itoa(len(b)))
+	c.Response.Out.Write(b)
 }
 
 func (c *Controller) Translate(msg string, args ...interface{}) string {

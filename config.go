@@ -23,6 +23,7 @@ type Config struct {
 	UrlBasePath      string `json:"url_base_path,omitempty" toml:"url_base_path,omitempty"`
 	CookieKeyLocale  string `json:"cookie_key_locale,omitempty" toml:"cookie_key_locale,omitempty"`
 	CookieKeySession string `json:"cookie_key_session,omitempty" toml:"cookie_key_session,omitempty"`
+	CompressResponse bool   `json:"compress_response,omitempty" toml:"compress_response,omitempty"`
 }
 
 func (c *Config) TemplateFuncRegister(name string, fn interface{}) {
