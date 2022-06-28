@@ -233,15 +233,14 @@ func (c *Controller) responseWrite(b []byte) {
 				buf bytes.Buffer
 				w   = gzip.NewWriter(&buf)
 			)
-			defer w.Close()
 
 			w.Write(b)
 			w.Flush()
-			b = buf.Bytes()
+			w.Close()
 
 			c.Response.Out.Header().Set("Content-Encoding", "gzip")
-			c.Response.Out.Header().Set("Content-Length", strconv.Itoa(len(b)))
-			c.Response.Out.Write(b)
+			c.Response.Out.Header().Set("Content-Length", strconv.Itoa(buf.Len()))
+			c.Response.Out.Write(buf.Bytes())
 			return
 		}
 	}
