@@ -1,6 +1,6 @@
 module github.com/hooto/httpsrv
 
-go 1.18
+go 1.17
 
 require github.com/hooto/hlog4g v0.9.4
 
