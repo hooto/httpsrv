@@ -15,7 +15,6 @@
 package httpsrv
 
 import (
-	"io"
 	"net/http"
 	"path/filepath"
 	"reflect"
@@ -134,20 +133,20 @@ func (c *Controller) Render(args ...interface{}) {
 
 	err := c.service.TemplateLoader.Render(c.Response, modName, templatePath, c.Data)
 	if err != nil {
-		c.Response.Status = http.StatusBadRequest
+		c.Response.Header().Set("Content-Type", "text/html; charset=utf-8")
+		c.Response.Out.WriteHeader(http.StatusBadRequest)
+		c.Response.Out.Write([]byte("400 Bad Request"))
 	} else {
-		c.Response.Status = http.StatusOK
+		c.Response.Header().Set("Content-Type", "text/html; charset=utf-8")
+		c.Response.WriteHeader(http.StatusOK)
 	}
-
-	c.Response.writeHeaderType(c.Response.Status, "text/html; charset=utf-8")
 }
 
 func (c *Controller) RenderError(status int, msg string) {
-
 	c.AutoRender = false
-
-	c.Response.writeHeaderType(status, "text/html; charset=utf-8")
-	io.WriteString(c.Response, msg)
+	c.Response.Header().Set("Content-Type", "text/html; charset=utf-8")
+	c.Response.Out.WriteHeader(status)
+	c.Response.Out.Write([]byte(msg))
 }
 
 func (c *Controller) UrlBase(path string) string {

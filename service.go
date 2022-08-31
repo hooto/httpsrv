@@ -31,7 +31,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/andybalholm/brotli"
 	"github.com/hooto/hlog4g/hlog"
+
 	"github.com/hooto/httpsrv/deps/go.net/websocket"
 )
 
@@ -302,23 +304,27 @@ func (s *Service) handleInternal(w http.ResponseWriter, r *http.Request, ws *web
 
 	resp.buf = &bytes.Buffer{}
 
-	if s.Config.CompressResponse &&
-		strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
-		resp.gzipWriter = gzip.NewWriter(resp.buf)
+	if s.Config.CompressResponse {
+		if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			w.Header().Set("Content-Encoding", "gzip")
+			resp.compWriter = gzip.NewWriter(resp.buf)
+		} else if strings.Contains(r.Header.Get("Accept-Encoding"), "br") {
+			w.Header().Set("Content-Encoding", "br")
+			resp.compWriter = brotli.NewWriterLevel(resp.buf, 5)
+		}
 	}
 
 	for _, filter := range s.Filters {
 		filter(c)
 	}
 
-	if resp.buf.Len() > 0 {
+	if resp.compWriter != nil {
+		resp.compWriter.Flush()
+		resp.compWriter.Close()
+		w.Header().Del("Content-Length")
+	}
 
-		if resp.gzipWriter != nil {
-			resp.gzipWriter.Flush()
-			resp.gzipWriter.Close()
-			w.Header().Set("Content-Encoding", "gzip")
-			w.Header().Del("Content-Length")
-		}
+	if resp.buf.Len() > 0 {
 
 		if resp.Status > 0 {
 			w.WriteHeader(resp.Status)

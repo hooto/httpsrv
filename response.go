@@ -16,16 +16,20 @@ package httpsrv
 
 import (
 	"bytes"
-	"compress/gzip"
 	"net/http"
 )
 
 type Response struct {
-	Out         http.ResponseWriter
-	Status      int
-	ContentType string
-	buf         *bytes.Buffer
-	gzipWriter  *gzip.Writer
+	Status     int
+	Out        http.ResponseWriter
+	buf        *bytes.Buffer
+	compWriter compressWriter
+}
+
+type compressWriter interface {
+	Write(b []byte) (int, error)
+	Flush() error
+	Close() error
 }
 
 func NewResponse(w http.ResponseWriter) *Response {
@@ -33,8 +37,8 @@ func NewResponse(w http.ResponseWriter) *Response {
 }
 
 func (resp *Response) Write(b []byte) (int, error) {
-	if resp.gzipWriter != nil {
-		return resp.gzipWriter.Write(b)
+	if resp.compWriter != nil {
+		return resp.compWriter.Write(b)
 	}
 	return resp.Out.Write(b)
 }
@@ -46,17 +50,5 @@ func (resp *Response) Header() http.Header {
 func (resp *Response) WriteHeader(status int) {
 	if status > resp.Status {
 		resp.Status = status
-	}
-}
-
-func (resp *Response) writeHeaderType(status int, ctype string) {
-
-	if status > resp.Status {
-		resp.Status = status
-	}
-
-	if resp.ContentType == "" && ctype != "" {
-		resp.ContentType = ctype
-		resp.Header().Set("Content-Type", resp.ContentType)
 	}
 }
