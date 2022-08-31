@@ -15,13 +15,10 @@
 package httpsrv
 
 import (
-	"bytes"
-	"compress/gzip"
 	"io"
 	"net/http"
 	"path/filepath"
 	"reflect"
-	"strconv"
 	"strings"
 )
 
@@ -135,22 +132,22 @@ func (c *Controller) Render(args ...interface{}) {
 		}
 	}()
 
-	err := c.service.TemplateLoader.Render(c.Response.Out, modName, templatePath, c.Data)
+	err := c.service.TemplateLoader.Render(c.Response, modName, templatePath, c.Data)
 	if err != nil {
 		c.Response.Status = http.StatusBadRequest
 	} else {
 		c.Response.Status = http.StatusOK
 	}
 
-	c.Response.WriteHeader(c.Response.Status, "text/html; charset=utf-8")
+	c.Response.writeHeaderType(c.Response.Status, "text/html; charset=utf-8")
 }
 
 func (c *Controller) RenderError(status int, msg string) {
 
 	c.AutoRender = false
 
-	c.Response.WriteHeader(status, "text/html; charset=utf-8")
-	io.WriteString(c.Response.Out, msg)
+	c.Response.writeHeaderType(status, "text/html; charset=utf-8")
+	io.WriteString(c.Response, msg)
 }
 
 func (c *Controller) UrlBase(path string) string {
@@ -192,22 +189,20 @@ func (c *Controller) Redirect(url string) {
 	if url[0] != '/' && !strings.HasPrefix(url, "http") {
 
 		if c.service.Config.UrlBasePath != "" {
-			c.Response.Out.Header().Set("Location", "/"+c.service.Config.UrlBasePath+"/"+url)
+			c.Response.Header().Set("Location", "/"+c.service.Config.UrlBasePath+"/"+url)
 		} else {
-			c.Response.Out.Header().Set("Location", "/"+url)
+			c.Response.Header().Set("Location", "/"+url)
 		}
 	} else {
-		c.Response.Out.Header().Set("Location", url)
+		c.Response.Header().Set("Location", url)
 	}
 
-	c.Response.Out.WriteHeader(http.StatusFound)
+	c.Response.WriteHeader(http.StatusFound)
 }
 
 func (c *Controller) RenderString(body string) {
-
 	c.AutoRender = false
-
-	io.WriteString(c.Response.Out, body)
+	c.Response.Write([]byte(body))
 }
 
 func (c *Controller) RenderJson(obj interface{}) {
@@ -218,34 +213,12 @@ func (c *Controller) RenderJsonIndent(obj interface{}, indent string) {
 
 	c.AutoRender = false
 
-	c.Response.Out.Header().Set("Access-Control-Allow-Origin", "*")
-	c.Response.Out.Header().Set("Content-type", "application/json")
+	c.Response.Header().Set("Access-Control-Allow-Origin", "*")
+	c.Response.Header().Set("Content-type", "application/json")
 
 	if js, err := jsonEncode(obj, indent); err == nil {
-		c.responseWrite(js)
+		c.Response.Write(js)
 	}
-}
-
-func (c *Controller) responseWrite(b []byte) {
-	if c.service.Config.CompressResponse {
-		if strings.Contains(c.Request.Header.Get("Accept-Encoding"), "gzip") {
-			var (
-				buf bytes.Buffer
-				w   = gzip.NewWriter(&buf)
-			)
-
-			w.Write(b)
-			w.Flush()
-			w.Close()
-
-			c.Response.Out.Header().Set("Content-Encoding", "gzip")
-			c.Response.Out.Header().Set("Content-Length", strconv.Itoa(buf.Len()))
-			c.Response.Out.Write(buf.Bytes())
-			return
-		}
-	}
-	c.Response.Out.Header().Set("Content-Length", strconv.Itoa(len(b)))
-	c.Response.Out.Write(b)
 }
 
 func (c *Controller) Translate(msg string, args ...interface{}) string {

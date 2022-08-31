@@ -88,7 +88,7 @@ func RouterFilter(c *Controller) {
 						defer fp.Close()
 						st, err := fp.Stat()
 						if err == nil {
-							http.ServeContent(c.Response.Out, c.Request.Request,
+							http.ServeContent(c.Response, c.Request.Request,
 								st.Name(), st.ModTime(), fp)
 							return
 						}
@@ -110,7 +110,7 @@ func RouterFilter(c *Controller) {
 					return
 				}
 
-				http.ServeFile(c.Response.Out, c.Request.Request, file)
+				http.ServeFile(c.Response, c.Request.Request, file)
 				return
 			}
 

@@ -15,6 +15,8 @@
 package httpsrv
 
 import (
+	"bytes"
+	"compress/gzip"
 	"errors"
 	"fmt"
 	"html/template"
@@ -24,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -297,7 +300,31 @@ func (s *Service) handleInternal(w http.ResponseWriter, r *http.Request, ws *web
 		}
 	}
 
+	resp.buf = &bytes.Buffer{}
+
+	if s.Config.CompressResponse &&
+		strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+		resp.gzipWriter = gzip.NewWriter(resp.buf)
+	}
+
 	for _, filter := range s.Filters {
 		filter(c)
+	}
+
+	if resp.buf.Len() > 0 {
+
+		if resp.gzipWriter != nil {
+			resp.gzipWriter.Flush()
+			resp.gzipWriter.Close()
+			w.Header().Set("Content-Encoding", "gzip")
+			w.Header().Del("Content-Length")
+		}
+
+		if resp.Status > 0 {
+			w.WriteHeader(resp.Status)
+		}
+
+		w.Header().Set("Content-Length", strconv.Itoa(resp.buf.Len()))
+		w.Write(resp.buf.Bytes())
 	}
 }
