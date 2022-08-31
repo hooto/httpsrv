@@ -14,7 +14,7 @@
 
 package httpsrv
 
-const Version = "0.10.1"
+const Version = "0.11.0"
 
 type Config struct {
 	HttpAddr         string `json:"http_addr,omitempty" toml:"http_addr,omitempty"` // e.g. "127.0.0.1", "unix:/tmp/app.sock"
