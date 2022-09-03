@@ -40,7 +40,7 @@ func (resp *Response) Write(b []byte) (int, error) {
 	if resp.compWriter != nil {
 		return resp.compWriter.Write(b)
 	}
-	return resp.Out.Write(b)
+	return resp.buf.Write(b)
 }
 
 func (resp *Response) Header() http.Header {

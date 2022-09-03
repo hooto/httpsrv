@@ -321,16 +321,13 @@ func (s *Service) handleInternal(w http.ResponseWriter, r *http.Request, ws *web
 	if resp.compWriter != nil {
 		resp.compWriter.Flush()
 		resp.compWriter.Close()
-		w.Header().Del("Content-Length")
 	}
 
 	if resp.buf.Len() > 0 {
-
+		w.Header().Set("Content-Length", strconv.Itoa(resp.buf.Len()))
 		if resp.Status > 0 {
 			w.WriteHeader(resp.Status)
 		}
-
-		w.Header().Set("Content-Length", strconv.Itoa(resp.buf.Len()))
 		w.Write(resp.buf.Bytes())
 	}
 }
