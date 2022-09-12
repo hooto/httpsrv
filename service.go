@@ -302,9 +302,10 @@ func (s *Service) handleInternal(w http.ResponseWriter, r *http.Request, ws *web
 		}
 	}
 
-	resp.buf = &bytes.Buffer{}
-
 	if s.Config.CompressResponse {
+
+		resp.buf = &bytes.Buffer{}
+
 		if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
 			w.Header().Set("Content-Encoding", "gzip")
 			resp.compWriter = gzip.NewWriter(resp.buf)
@@ -318,16 +319,21 @@ func (s *Service) handleInternal(w http.ResponseWriter, r *http.Request, ws *web
 		filter(c)
 	}
 
-	if resp.compWriter != nil {
-		resp.compWriter.Flush()
-		resp.compWriter.Close()
-	}
+	if resp.buf != nil {
 
-	if resp.buf.Len() > 0 {
-		w.Header().Set("Content-Length", strconv.Itoa(resp.buf.Len()))
-		if resp.Status > 0 {
+		if resp.compWriter != nil {
+			resp.compWriter.Flush()
+			resp.compWriter.Close()
+		}
+
+		if resp.buf.Len() > 0 {
+			w.Header().Set("Content-Length", strconv.Itoa(resp.buf.Len()))
+			if resp.Status > 0 {
+				w.WriteHeader(resp.Status)
+			}
+			w.Write(resp.buf.Bytes())
+		} else if resp.Status > 0 {
 			w.WriteHeader(resp.Status)
 		}
-		w.Write(resp.buf.Bytes())
 	}
 }
