@@ -15,7 +15,6 @@
 package httpsrv
 
 import (
-	"bytes"
 	"compress/gzip"
 	"errors"
 	"fmt"
@@ -294,6 +293,7 @@ func (s *Service) handleInternal(w http.ResponseWriter, r *http.Request, ws *web
 		req  = NewRequest(r)
 		resp = NewResponse(w)
 		c    = NewController(s, req, resp)
+		ae   = r.Header.Get("Accept-Encoding")
 	)
 
 	if ws != nil {
@@ -302,16 +302,11 @@ func (s *Service) handleInternal(w http.ResponseWriter, r *http.Request, ws *web
 		}
 	}
 
-	resp.buf = &bytes.Buffer{}
-
 	if s.Config.CompressResponse {
-
-		if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
-			w.Header().Set("Content-Encoding", "gzip")
-			resp.compWriter = gzip.NewWriter(resp.buf)
-		} else if strings.Contains(r.Header.Get("Accept-Encoding"), "br") {
-			w.Header().Set("Content-Encoding", "br")
-			resp.compWriter = brotli.NewWriterLevel(resp.buf, 5)
+		if strings.Contains(ae, "gzip") {
+			resp.compWriter, ae = gzip.NewWriter(resp.buf), "gzip"
+		} else if strings.Contains(ae, "br") {
+			resp.compWriter, ae = brotli.NewWriterLevel(resp.buf, 5), "br"
 		}
 	}
 
@@ -319,12 +314,20 @@ func (s *Service) handleInternal(w http.ResponseWriter, r *http.Request, ws *web
 		filter(c)
 	}
 
-	if resp.compWriter != nil {
+	if resp.compWriter != nil && resp.buf != nil {
 		resp.compWriter.Flush()
 		resp.compWriter.Close()
+
+		if w.Header().Get("Content-Encoding") == "" && resp.buf.Len() > 0 {
+			if ae == "gzip" {
+				w.Header().Set("Content-Encoding", "gzip")
+			} else if ae == "br" {
+				w.Header().Set("Content-Encoding", "br")
+			}
+		}
 	}
 
-	if resp.buf.Len() > 0 {
+	if resp.buf != nil && resp.buf.Len() > 0 {
 		w.Header().Set("Content-Length", strconv.Itoa(resp.buf.Len()))
 		if resp.Status > 0 {
 			w.WriteHeader(resp.Status)
