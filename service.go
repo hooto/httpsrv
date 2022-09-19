@@ -15,6 +15,7 @@
 package httpsrv
 
 import (
+	"bytes"
 	"compress/gzip"
 	"errors"
 	"fmt"
@@ -303,6 +304,9 @@ func (s *Service) handleInternal(w http.ResponseWriter, r *http.Request, ws *web
 	}
 
 	if s.Config.CompressResponse {
+		if resp.buf == nil {
+			resp.buf = &bytes.Buffer{}
+		}
 		if strings.Contains(ae, "gzip") {
 			resp.compWriter, ae = gzip.NewWriter(resp.buf), "gzip"
 		} else if strings.Contains(ae, "br") {
@@ -314,7 +318,7 @@ func (s *Service) handleInternal(w http.ResponseWriter, r *http.Request, ws *web
 		filter(c)
 	}
 
-	if resp.compWriter != nil && resp.buf != nil {
+	if resp.compWriter != nil {
 		resp.compWriter.Flush()
 		resp.compWriter.Close()
 
