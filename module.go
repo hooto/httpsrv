@@ -15,6 +15,7 @@
 package httpsrv
 
 import (
+	"fmt"
 	"net/http"
 	"path/filepath"
 	"reflect"
@@ -22,71 +23,29 @@ import (
 )
 
 var (
-	DefaultModule = Module{
-		name:        "default",
-		routes:      []Route{},
-		controllers: make(map[string]*controllerType),
+	DefaultModule = &Module{
+		controllers: make(map[string]interface{}),
 		viewpaths:   []string{},
 	}
+
+	DefaultModules = []*Module{}
 )
 
 type Module struct {
-	name        string
-	baseuri     string
-	routes      []Route
-	controllers map[string]*controllerType
+	Path        string
+	controllers map[string]interface{}
 	viewpaths   []string
 	viewfss     []http.FileSystem
+	handlers    []*regHandler
 }
 
-func NewModule(name string) Module {
-	return Module{
-		name:        name,
-		controllers: make(map[string]*controllerType),
+func NewModule() *Module {
+	return &Module{
+		controllers: make(map[string]interface{}),
 	}
 }
 
-func NewStaticModule(name, path string) Module {
-
-	m := NewModule(name)
-
-	m.RouteSet(Route{
-		Type:       RouteTypeStatic,
-		Path:       "",
-		StaticPath: path,
-	})
-
-	return m
-}
-
-func (m *Module) RouteSet(r Route) {
-
-	if r.Type == "" {
-		r.Type = RouteTypeBasic
-	}
-
-	if r.Type != RouteTypeBasic && r.Type != RouteTypeStatic {
-		return
-	}
-
-	if r.Type == RouteTypeStatic && r.StaticPath == "" {
-		return
-	}
-
-	r.Path = strings.Trim(r.Path, "/")
-
-	for i, route := range m.routes {
-
-		if route.Path == r.Path {
-			m.routes[i] = r
-			return
-		}
-	}
-
-	m.routes = append(m.routes, r)
-}
-
-func (m *Module) TemplatePathSet(paths ...string) {
+func (m *Module) SetTemplatePath(paths ...string) {
 
 	for _, path := range paths {
 
@@ -108,7 +67,7 @@ func (m *Module) TemplatePathSet(paths ...string) {
 	}
 }
 
-func (m *Module) TemplateFileSystemSet(fss ...http.FileSystem) {
+func (m *Module) SetTemplateFileSystem(fss ...http.FileSystem) {
 
 	for _, fs := range fss {
 
@@ -128,7 +87,25 @@ func (m *Module) TemplateFileSystemSet(fss ...http.FileSystem) {
 	}
 }
 
-func (m *Module) ControllerRegister(c interface{}) {
+func (m *Module) RegisterStaticFileSystem(pattern string, fs http.FileSystem) {
+	m.handlers = append(m.handlers, &regHandler{
+		pattern: pattern,
+		handlerStatic: &handlerStaticFile{
+			binFs: fs,
+		},
+	})
+}
+
+func (m *Module) RegisterStaticFilepath(pattern, path string) {
+	m.handlers = append(m.handlers, &regHandler{
+		pattern: pattern,
+		handlerStatic: &handlerStaticFile{
+			filepath: path,
+		},
+	})
+}
+
+func (m *Module) RegisterController(c interface{}) {
 
 	cval := reflect.ValueOf(c)
 	if !cval.IsValid() {
@@ -138,30 +115,29 @@ func (m *Module) ControllerRegister(c interface{}) {
 	var (
 		t       = reflect.TypeOf(c)
 		elem    = t.Elem()
-		methods = []string{}
+		indexes = findControllers(elem)
 	)
 
 	for i := 0; i < elem.NumMethod(); i++ {
 
-		m := elem.Method(i)
+		am := elem.Method(i)
 
-		if len(m.Name) > 6 && m.Name[len(m.Name)-6:] == "Action" {
-			methods = append(methods, m.Name)
+		if len(am.Name) <= 6 || !strings.HasSuffix(am.Name, "Action") {
+			continue
 		}
-	}
 
-	cm := &controllerType{
-		Type:              elem,
-		Methods:           []string{},
-		ControllerIndexes: findControllers(elem),
-	}
-
-	for _, method := range methods {
-
-		if m := cval.MethodByName(method); m.IsValid() {
-			cm.Methods = append(cm.Methods, method)
+		if vm := cval.MethodByName(am.Name); !vm.IsValid() {
+			continue
 		}
-	}
 
-	m.controllers[elem.Name()] = cm
+		m.handlers = append(m.handlers, &regHandler{
+			pattern: strings.ToLower(fmt.Sprintf("/%s/%s", elem.Name(), am.Name[:len(am.Name)-6])),
+			handlerController: &handlerController{
+				Name:        elem.Name(),
+				ActionName:  am.Name[:len(am.Name)-6],
+				ctrlType:    elem,
+				ctrlIndexes: indexes,
+			},
+		})
+	}
 }

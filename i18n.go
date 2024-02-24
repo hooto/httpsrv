@@ -21,11 +21,11 @@ import (
 	"os"
 	"regexp"
 	"strings"
-
-	"github.com/hooto/hlog4g/hlog"
+	"sync"
 )
 
 var (
+	i18nMut       sync.RWMutex
 	i18n          = map[string]string{}
 	i18nDefLocale = "en"
 	i18nRegPath   = regexp.MustCompile("/+")
@@ -45,8 +45,8 @@ func I18nFilter(c *Controller) {
 
 	if v, e := c.Request.Cookie(c.service.Config.CookieKeyLocale); e == nil {
 		c.Request.Locale = v.Value
-	} else if len(c.Request.AcceptLanguage) > 0 {
-		c.Request.Locale = c.Request.AcceptLanguage[0].Language
+	} else if len(c.Request.acceptLanguage) > 0 {
+		c.Request.Locale = c.Request.acceptLanguage[0].Language
 	} else {
 		c.Request.Locale = i18nDefLocale
 	}
@@ -56,15 +56,19 @@ func I18nFilter(c *Controller) {
 
 func i18nLoadMessages(file string) {
 
+	i18nMut.Lock()
+	defer i18nMut.Unlock()
+
 	var cfg i18nConfig
 
 	str, err := i18nFsFileGetRead(file)
 	if err != nil {
+		defaultLogger.Warnf("httpsrv/lang load file (%s) err %s", file, err.Error())
 		return
 	}
 
 	if err := jsonDecode([]byte(str), &cfg); err != nil {
-		hlog.Printf("warn", "httpsrv/lang setup err %s", err.Error())
+		defaultLogger.Warnf("httpsrv/lang setup err %s", err.Error())
 		return
 	}
 
@@ -85,39 +89,36 @@ func i18nTranslate(locale, msg string, args ...interface{}) string {
 	key := strings.ToLower(locale + "." + msg)
 	keydef := strings.ToLower(i18nDefLocale + "." + msg)
 
+	i18nMut.RLock()
+
 	if v, ok := i18n[key]; ok {
 		msg = v
 	} else if v, ok := i18n[keydef]; ok {
 		msg = v
 	}
 
+	i18nMut.RUnlock()
+
 	if len(args) > 0 {
 		return fmt.Sprintf(msg, args...)
-	} else {
-		return msg
 	}
+	return msg
 }
 
 func i18nFsFileGetRead(path string) (string, error) {
 
 	path = "/" + strings.Trim(i18nRegPath.ReplaceAllString(path, "/"), "/")
 
-	st, err := os.Stat(path)
-	if err != nil || os.IsNotExist(err) {
-		return "", errors.New("File Not Found")
-	}
+	i18nMut.Lock()
+	defer i18nMut.Unlock()
 
-	if st.Size() > (10 * 1024 * 1024) {
+	if st, err := os.Stat(path); err != nil || os.IsNotExist(err) {
+		return "", errors.New("File Not Found")
+	} else if st.Size() > (10 << 20) {
 		return "", errors.New("File size is too large")
 	}
 
-	fp, err := os.OpenFile(path, os.O_RDWR, 0754)
-	if err != nil {
-		return "", errors.New("File Can Not Open")
-	}
-	defer fp.Close()
-
-	ctn, err := ioutil.ReadAll(fp)
+	ctn, err := ioutil.ReadFile(path)
 	if err != nil {
 		return "", errors.New("File Can Not Readable")
 	}

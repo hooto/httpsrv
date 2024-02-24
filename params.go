@@ -15,61 +15,83 @@
 package httpsrv
 
 import (
+	"net/http"
 	"net/url"
 	"strconv"
 )
 
 type Params struct {
-	url.Values // A unified view of all the individual param maps below
+	inited bool
 
-	// Set by the ParamsFilter
-	Query url.Values // Parameters from the query string, e.g. /index?limit=10
-	Form  url.Values // Parameters from the request body.
-}
+	// A unified view of all the individual param maps below
+	values url.Values
 
-func newParams() *Params {
-
-	return &Params{
-		Values: make(url.Values, 0),
-	}
+	request *http.Request
 }
 
 func ParamsFilter(c *Controller) {
-
-	c.Params.Query = c.Request.URL.Query()
-	for k, v := range c.Params.Query {
-		if _, ok := c.Params.Values[k]; !ok {
-			c.Params.Values[k] = v
+	if c.Params == nil {
+		c.Params = &Params{
+			request: c.Request.Request,
 		}
+	} else {
+		c.Params.request = c.Request.Request
 	}
+}
 
-	if c.Request.ContentType == "application/x-www-form-urlencoded" {
-		// Typical form.
-		if err := c.Request.ParseForm(); err != nil {
-			// Error parsing request body
-		} else {
+func (p *Params) reset() *Params {
+	p.values = make(url.Values)
+	p.inited = false
+	p.request = nil
+	return p
+}
 
-			c.Params.Form = c.Request.Form
-
-			for k, v := range c.Params.Form {
-				if _, ok := c.Params.Values[k]; !ok {
-					c.Params.Values[k] = v
-				}
-			}
+func (p *Params) init() {
+	if p.inited {
+		return
+	}
+	p.inited = true
+	if p.request != nil {
+		p.values = p.request.URL.Query()
+		if p.request.Method == "POST" ||
+			p.request.Method == "PUT" ||
+			p.request.Method == "PATCH" {
+			p.request.ParseForm()
 		}
 	}
 }
 
-func (p *Params) String(key string) string {
-	return p.Values.Get(key)
+func (p *Params) setValue(k, v string) {
+	p.init()
+	if p.values == nil {
+		p.values = make(url.Values)
+	}
+	if p.values.Has(k) {
+		p.values[k] = append(p.values[k], v)
+	} else {
+		p.values[k] = []string{v}
+	}
 }
 
-func (p *Params) Uint64(key string) uint64 {
-	ui64, _ := strconv.ParseUint(p.Values.Get(key), 10, 64)
-	return ui64
+func (p *Params) Get(key string) string {
+	p.init()
+	if p.values != nil && p.values.Has(key) {
+		return p.values.Get(key)
+	}
+	if p.request.Form != nil && p.request.Form.Has(key) {
+		return p.request.Form.Get(key)
+	}
+	if p.request.PostForm != nil && p.request.PostForm.Has(key) {
+		return p.request.PostForm.Get(key)
+	}
+	return ""
 }
 
 func (p *Params) Int64(key string) int64 {
-	i64, _ := strconv.ParseInt(p.Values.Get(key), 10, 64)
+	s := p.Get(key)
+	if s == "" {
+		return 0
+	}
+	i64, _ := strconv.ParseInt(s, 10, 64)
 	return i64
 }

@@ -22,31 +22,31 @@ import (
 )
 
 type Controller struct {
-	Name          string // The controller name, e.g. "App"
-	ActionName    string // The action name, e.g. "Index"
-	Request       *Request
-	Response      *Response
-	Params        *Params  // Parameters from URL and form (including multipart).
-	Session       *Session // Session, stored in cookie, signed.
-	AutoRender    bool
-	Data          map[string]interface{}
-	appController interface{} // The controller that was instantiated.
-	modName       string
-	modUrlBase    string
-	service       *Service
+	Name       string // The controller name, e.g. "App"
+	ActionName string // The action name, e.g. "Index"
+	Request    *Request
+	Response   *Response
+	Params     *Params  // Parameters from URL and form (including multipart).
+	Session    *Session // Session, stored in cookie, signed.
+	AutoRender bool
+	Data       map[string]interface{}
+	modPath    string
+	service    *Service
 }
 
-type controllerType struct {
-	Type              reflect.Type
-	Methods           []string
-	ControllerIndexes [][]int
+type handlerController struct {
+	ModPath     string
+	Name        string
+	ActionName  string
+	ctrlType    reflect.Type
+	ctrlIndexes [][]int
 }
 
 var (
 	controllerPtrType = reflect.TypeOf(&Controller{})
 )
 
-func NewController(srv *Service, req *Request, resp *Response) *Controller {
+func newController(srv *Service, req *Request, resp *Response) *Controller {
 
 	return &Controller{
 		Name:       "Index",
@@ -54,55 +54,9 @@ func NewController(srv *Service, req *Request, resp *Response) *Controller {
 		service:    srv,
 		Request:    req,
 		Response:   resp,
-		Params:     newParams(),
+		Params:     &Params{},
 		AutoRender: true,
 		Data:       map[string]interface{}{},
-	}
-}
-
-var (
-	genArgs = []reflect.Value{}
-)
-
-func ActionInvoker(c *Controller) {
-
-	//
-	if c.appController == nil {
-		return
-	}
-
-	//
-	execController := reflect.ValueOf(c.appController).MethodByName("Init")
-	if execController.Kind() != reflect.Invalid {
-
-		if iv := execController.Call(genArgs)[0]; iv.Kind() == reflect.Int {
-
-			if iv.Int() != 0 {
-				return
-			}
-		}
-	}
-
-	//
-	execController = reflect.ValueOf(c.appController).MethodByName(c.ActionName + "Action")
-	if execController.Kind() == reflect.Invalid && c.ActionName != "Index" {
-
-		execController = reflect.ValueOf(c.appController).MethodByName("IndexAction")
-
-		if execController.Kind() == reflect.Invalid {
-			return
-		}
-	}
-
-	//
-	if execController.Type().IsVariadic() {
-		execController.CallSlice(genArgs)
-	} else {
-		execController.Call(genArgs)
-	}
-
-	if c.AutoRender {
-		c.Render()
 	}
 }
 
@@ -110,13 +64,13 @@ func (c *Controller) Render(args ...interface{}) {
 
 	c.AutoRender = false
 
-	modName, templatePath := c.modName, c.Name+"/"+c.ActionName+".tpl"
+	modPath, templatePath := c.modPath, c.Name+"/"+c.ActionName+".tpl"
 
 	if len(args) == 2 &&
 		reflect.TypeOf(args[0]).Kind() == reflect.String &&
 		reflect.TypeOf(args[1]).Kind() == reflect.String {
 
-		modName, templatePath = args[0].(string), args[1].(string)
+		modPath, templatePath = args[0].(string), args[1].(string)
 
 	} else if len(args) == 1 &&
 		reflect.TypeOf(args[0]).Kind() == reflect.String {
@@ -131,7 +85,7 @@ func (c *Controller) Render(args ...interface{}) {
 		}
 	}()
 
-	err := c.service.TemplateLoader.Render(c.Response, modName, templatePath, c.Data)
+	err := c.service.TemplateLoader.Render(c.Response, modPath, templatePath, c.Data)
 	if err != nil {
 		c.Response.Header().Set("Content-Type", "text/html; charset=utf-8")
 		c.Response.Out.WriteHeader(http.StatusBadRequest)
@@ -151,15 +105,15 @@ func (c *Controller) RenderError(status int, msg string) {
 
 func (c *Controller) UrlBase(path string) string {
 
-	url_base := ""
+	urlBase := ""
 	if c.Request.TLS != nil {
-		url_base = "https://" + c.Request.Host
+		urlBase = "https://" + c.Request.Host
 	} else {
-		url_base = "http://" + c.Request.Host
+		urlBase = "http://" + c.Request.Host
 	}
 
 	if c.service.Config.UrlBasePath != "" {
-		url_base += "/" + c.service.Config.UrlBasePath
+		urlBase += "/" + c.service.Config.UrlBasePath
 	}
 
 	if len(path) > 0 {
@@ -167,14 +121,14 @@ func (c *Controller) UrlBase(path string) string {
 	}
 
 	if path != "" {
-		url_base += "/" + path
+		urlBase += "/" + path
 	}
 
-	return url_base
+	return urlBase
 }
 
 func (c *Controller) UrlModuleBase(path string) string {
-	return c.UrlBase(c.modUrlBase + "/" + path)
+	return c.UrlBase(c.modPath + "/" + path)
 }
 
 func (c *Controller) Redirect(url string) {
@@ -199,9 +153,9 @@ func (c *Controller) Redirect(url string) {
 	c.Response.WriteHeader(http.StatusFound)
 }
 
-func (c *Controller) RenderString(body string) {
+func (c *Controller) RenderString(v string) {
 	c.AutoRender = false
-	c.Response.Write([]byte(body))
+	c.Response.Write([]byte(v))
 }
 
 func (c *Controller) RenderJson(obj interface{}) {

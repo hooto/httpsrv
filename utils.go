@@ -15,8 +15,18 @@
 package httpsrv
 
 import (
+	"bytes"
 	"encoding/json"
+	"reflect"
+	"sync"
+	"unsafe"
 )
+
+var bytesBufferPool = sync.Pool{
+	New: func() interface{} {
+		return &bytes.Buffer{}
+	},
+}
 
 func jsonEncode(v interface{}, indent string) ([]byte, error) {
 	if indent != "" {
@@ -27,4 +37,17 @@ func jsonEncode(v interface{}, indent string) ([]byte, error) {
 
 func jsonDecode(src []byte, v interface{}) error {
 	return json.Unmarshal(src, &v)
+}
+
+func b2s(b []byte) string {
+	return *(*string)(unsafe.Pointer(&b))
+}
+
+func s2b(s string) (b []byte) {
+	bh := (*reflect.SliceHeader)(unsafe.Pointer(&b))
+	sh := (*reflect.StringHeader)(unsafe.Pointer(&s))
+	bh.Data = sh.Data
+	bh.Cap = sh.Len
+	bh.Len = sh.Len
+	return b
 }

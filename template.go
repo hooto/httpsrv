@@ -24,8 +24,6 @@ import (
 	"path"
 	"strings"
 	"sync"
-
-	"github.com/hooto/hlog4g/hlog"
 )
 
 // This object handles loading and parsing of templates.
@@ -40,39 +38,41 @@ type TemplateLoader struct {
 	templateSets map[string]*template.Template
 }
 
-func (it *TemplateLoader) Clean(modName string) {
+func (it *TemplateLoader) Clean(modUrlBase string) {
 
 	it.mu.Lock()
 	defer it.mu.Unlock()
 
-	if _, ok := it.templateSets[modName]; ok {
-		delete(it.templateSets, modName)
+	if _, ok := it.templateSets[modUrlBase]; ok {
+		delete(it.templateSets, modUrlBase)
 	}
 
 	for k := range it.templatePaths {
 
-		if strings.HasPrefix(k, modName+".") {
+		if strings.HasPrefix(k, modUrlBase+".") {
 			delete(it.templatePaths, k)
 		}
 	}
 }
 
-func (it *TemplateLoader) Set(modName string, viewpaths []string, viewfss []http.FileSystem) {
+func (it *TemplateLoader) Set(modUrlBase string, viewpaths []string, viewfss []http.FileSystem) {
 
 	it.mu.Lock()
 	defer it.mu.Unlock()
 
-	loaderTemplateSet, ok := it.templateSets[modName]
+	loaderTemplateSet, ok := it.templateSets[modUrlBase]
 	if ok {
 		return
 	}
 
 	addTemplate := func(templateFile, fileStr string) error {
 
-		templateName := strings.Trim(templateFile, "/")
-		templateNameL := strings.ToLower(templateName)
+		var (
+			templateName  = strings.Trim(templateFile, "/")
+			templateNameL = strings.ToLower(templateName)
+		)
 
-		if _, ok := it.templatePaths[modName+"."+templateNameL]; ok {
+		if _, ok := it.templatePaths[modUrlBase+"."+templateNameL]; ok {
 			return nil
 		}
 
@@ -91,7 +91,7 @@ func (it *TemplateLoader) Set(modName string, viewpaths []string, viewfss []http
 				loaderTemplateSet = template.New(templateName).Funcs(TemplateFuncs)
 
 				if _, err = loaderTemplateSet.Parse(fileStr); err == nil {
-					it.templateSets[modName] = loaderTemplateSet
+					it.templateSets[modUrlBase] = loaderTemplateSet
 				}
 			}()
 
@@ -106,9 +106,11 @@ func (it *TemplateLoader) Set(modName string, viewpaths []string, viewfss []http
 				loaderTemplateSet.New(templateNameL).Parse(fileStr)
 			}
 
-			it.templatePaths[modName+"."+templateNameL] = templateFile
+			it.templatePaths[modUrlBase+"."+templateNameL] = templateFile
+
+			defaultLogger.Infof("httpsrv: module %s, template %s added", modUrlBase, templateFile)
 		} else {
-			hlog.Printf("warn", "template (%s/%s) parse err %s", modName, templateFile, err.Error())
+			defaultLogger.Warnf("httpsrv: module %s, template %s parse err %s", modUrlBase, templateFile, err.Error())
 		}
 
 		return err
@@ -130,7 +132,8 @@ func (it *TemplateLoader) Set(modName string, viewpaths []string, viewfss []http
 		}
 
 		if !st.IsDir() {
-			if strings.HasSuffix(dir, ".tpl") {
+			if strings.HasSuffix(dir, ".tpl") ||
+				strings.HasSuffix(dir, ".html") {
 				var buf bytes.Buffer
 				if _, err = io.Copy(&buf, fp); err != nil {
 					return err
@@ -168,20 +171,22 @@ func (it *TemplateLoader) Set(modName string, viewpaths []string, viewfss []http
 	}
 }
 
-func (it *TemplateLoader) Render(wr io.Writer, modName, tplPath string, arg interface{}) error {
-
-	it.mu.RLock()
-	defer it.mu.RUnlock()
+func (it *TemplateLoader) Render(wr io.Writer, modUrlBase, tplPath string, arg interface{}) error {
 
 	defer func() {
 		if err := recover(); err != nil {
-			hlog.Printf("debug", "template (%s/%s) render err %v", modName, tplPath, err)
+			defaultLogger.Debugf("httpsrv: template (%s/%s) render err %v", modUrlBase, tplPath, err)
 		}
 	}()
 
-	tplSet, ok := it.templateSets[modName]
+	defaultLogger.Infof("httpsrv: template (%s/%s) render", modUrlBase, tplPath)
+
+	it.mu.RLock()
+	tplSet, ok := it.templateSets[modUrlBase]
+	it.mu.RUnlock()
+
 	if !ok || tplSet == nil {
-		return fmt.Errorf("module %s not found", modName)
+		return fmt.Errorf("module %s not found", modUrlBase)
 	}
 	// return tplSet.ExecuteTemplate(wr, tplPath, arg)
 
@@ -191,7 +196,7 @@ func (it *TemplateLoader) Render(wr io.Writer, modName, tplPath string, arg inte
 			tpl = tplSet.Lookup(tplPathl)
 		}
 		if tpl == nil {
-			return fmt.Errorf("template %s/%s not found", modName, tplPath)
+			return fmt.Errorf("template %s/%s not found", modUrlBase, tplPath)
 		}
 	}
 	return tpl.Execute(wr, arg)

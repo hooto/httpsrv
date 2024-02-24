@@ -19,7 +19,6 @@ type Session struct {
 }
 
 func SessionFilter(c *Controller) {
-
 	c.Session = &Session{
 		c: c,
 	}

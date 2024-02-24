@@ -14,20 +14,16 @@
 
 package httpsrv
 
-import (
-	"net/rpc"
-	"path/filepath"
-	"strings"
-)
+type Context struct {
+	c *Controller
+}
 
-func (s *Service) RpcRegister(baseuri string, rcvr interface{}) {
+func (it *Context) SendString(v string) error {
+	it.c.RenderString(v)
+	return nil
+}
 
-	baseuri = "/" + strings.Trim(filepath.Clean(s.Config.UrlBasePath+"/"+baseuri), "/")
-
-	srv, ok := s.rpcRegs[baseuri]
-	if !ok || srv == nil {
-		s.rpcRegs[baseuri] = rpc.NewServer()
-	}
-
-	s.rpcRegs[baseuri].Register(rcvr)
+func (it *Context) SendError(status int, msg string) error {
+	it.c.RenderError(status, msg)
+	return nil
 }

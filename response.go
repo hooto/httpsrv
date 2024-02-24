@@ -32,16 +32,16 @@ type compressWriter interface {
 	Close() error
 }
 
-func NewResponse(w http.ResponseWriter) *Response {
-	return &Response{Out: w}
+func newResponse(w http.ResponseWriter) *Response {
+	return &Response{
+		Out: w,
+		buf: &bytes.Buffer{},
+	}
 }
 
 func (resp *Response) Write(b []byte) (int, error) {
 	if resp.compWriter != nil && resp.Out.Header().Get("Content-Encoding") == "" {
 		return resp.compWriter.Write(b)
-	}
-	if resp.buf == nil {
-		resp.buf = &bytes.Buffer{}
 	}
 	return resp.buf.Write(b)
 }

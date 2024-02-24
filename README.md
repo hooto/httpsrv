@@ -45,6 +45,8 @@ func NewModule() httpsrv.Module {
 
 func main() {
 
+    // srv := httpsrv.NewService()
+
     // register module to httpsrv
     httpsrv.GlobalService.ModuleRegister("/", NewModule())
 

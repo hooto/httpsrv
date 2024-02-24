@@ -15,69 +15,52 @@
 package httpsrv
 
 import (
-	"bytes"
-	"compress/gzip"
 	"errors"
 	"fmt"
 	"html/template"
 	"net"
 	"net/http"
-	"net/rpc"
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/andybalholm/brotli"
-	"github.com/hooto/hlog4g/hlog"
-
-	"github.com/hooto/httpsrv/deps/go.net/websocket"
 )
 
 type Service struct {
+	mu sync.RWMutex
+
 	Config  Config
 	Filters []Filter
 
-	err            error
-	modules        []Module
-	server         *http.Server
-	rpcRegs        map[string]*rpc.Server
-	handlers       []reg_handler
+	server *http.Server
+
+	modules  []*Module
+	handlers []*regHandler
+
+	logger Logger
+
 	TemplateLoader *TemplateLoader
 }
 
-type reg_handler struct {
-	base         string
-	handler      *http.Handler
-	handler_func *http.HandlerFunc
-}
-
 var (
-	lock          sync.Mutex
-	GlobalService = NewService()
+	DefaultService = NewService()
 )
 
 func NewService() *Service {
 
 	return &Service{
 
-		Config: Config{
-			HttpAddr:         "0.0.0.0",
-			HttpPort:         8080,
-			HttpTimeout:      30, // 30 seconds
-			CookieKeyLocale:  "lang",
-			CookieKeySession: "access_token",
-		},
+		Config: DefaultConfig,
 
 		Filters: DefaultFilters,
 
-		modules: []Module{},
+		modules: DefaultModules,
 
-		rpcRegs:  map[string]*rpc.Server{},
-		handlers: []reg_handler{},
+		handlers: []*regHandler{},
+
+		logger: defaultLogger,
 
 		TemplateLoader: &TemplateLoader{
 			templatePaths: map[string]string{},
@@ -86,90 +69,121 @@ func NewService() *Service {
 	}
 }
 
-func (s *Service) handlerRegister(h reg_handler) {
-
-	h.base = "/" + strings.Trim(filepath.Clean(h.base), "/")
-
-	for _, v := range s.handlers {
-		if v.base == h.base {
+func (s *Service) regHandler(h *regHandler) {
+	h.service = s
+	h.pattern = filepath.Clean(h.pattern)
+	if h.handlerStatic != nil && !strings.HasSuffix(h.pattern, "/") {
+		h.pattern += "/"
+	}
+	if h.params == nil {
+		h.params = map[string]string{}
+	}
+	{
+		names := strings.Split(h.pattern, "/")
+		for i, pname := range names {
+			if len(pname) > 2 && pname[0] == '{' && pname[len(pname)-1] == '}' {
+				h.params[pname[1:len(pname)-1]] = ""
+			} else if len(pname) > 1 && pname[0] == ':' {
+				h.params[pname[1:]] = ""
+				names[i] = "{" + pname[1:] + "}"
+			}
+		}
+		h.pattern = strings.Join(names, "/")
+	}
+	for i, v := range s.handlers {
+		if v.pattern == h.pattern {
+			s.handlers[i] = h
 			return
 		}
 	}
-
 	s.handlers = append(s.handlers, h)
 }
 
-func (s *Service) HandlerRegister(baseuri string, h http.Handler) {
-	s.handlerRegister(reg_handler{
-		base:    baseuri,
-		handler: &h,
+func (s *Service) HandleHttp(method, pattern string, fn func(ctx *Context) error) {
+	if fn == nil {
+		return
+	}
+	method = strings.ToUpper(method)
+	switch method {
+	case "GET", "POST", "PUT", "DELETE":
+		//
+	default:
+		method = ""
+	}
+	s.regHandler(&regHandler{
+		method:         method,
+		pattern:        pattern,
+		handlerContext: fn,
 	})
 }
 
-func (s *Service) HandlerFuncRegister(baseuri string, h http.HandlerFunc) {
-	s.handlerRegister(reg_handler{
-		base:         baseuri,
-		handler_func: &h,
+// func (s *Service) Handle(pattern string, h http.Handler) {
+// 	s.regHandler(&regHandler{
+// 		pattern: pattern,
+// 		handler: &h,
+// 	})
+// }
+
+func (s *Service) HandleFunc(pattern string, h func(w http.ResponseWriter, r *http.Request)) {
+	s.regHandler(&regHandler{
+		pattern:     pattern,
+		handlerFunc: h,
 	})
 }
 
-func (s *Service) ModuleRegister(baseuri string, mod Module) {
+func (s *Service) HandleModule(pattern string, mod *Module) {
 
-	lock.Lock()
-	defer lock.Unlock()
-
-	set := Module{
-		name:        mod.name,
-		baseuri:     strings.Trim(baseuri, "/"),
+	mod1 := &Module{
+		Path:        filepath.Clean(pattern),
 		viewpaths:   mod.viewpaths,
 		viewfss:     mod.viewfss,
 		controllers: mod.controllers,
 	}
 
-	mod.routes = append(mod.routes, defaultRoute)
+	for _, h := range mod.handlers {
 
-	for _, r := range mod.routes {
-
-		if r.Type == RouteTypeStatic && r.StaticPath != "" {
-
-			set.routes = append(set.routes, r)
-
-		} else if r.Type == RouteTypeBasic {
-
-			r.Path = strings.Trim(r.Path, "/")
-			r.tree = strings.Split(r.Path, "/")
-			r.treelen = len(r.tree)
-
-			if r.treelen < 1 {
-				continue
-			}
-
-			set.routes = append(set.routes, r)
+		if h.handlerController != nil {
+			h.handlerController.ModPath = mod1.Path
+			s.regHandler(&regHandler{
+				pattern:           mod1.Path + "/" + h.pattern,
+				handlerController: h.handlerController,
+			})
+		} else if h.handlerStatic != nil {
+			h.handlerStatic.filepath = filepath.Clean(h.handlerStatic.filepath)
+			s.regHandler(&regHandler{
+				pattern:       filepath.Clean(mod1.Path + "/" + h.pattern),
+				handlerStatic: h.handlerStatic,
+			})
 		}
 	}
 
-	s.TemplateLoader.Set(mod.name, mod.viewpaths, mod.viewfss)
+	s.TemplateLoader.Set(mod1.Path, mod1.viewpaths, mod1.viewfss)
 
-	s.modules = append(s.modules, set)
+	for i, pmod := range s.modules {
+		if pmod.Path == mod1.Path {
+			s.modules[i] = mod1
+			mod1 = nil
+			break
+		}
+	}
+	if mod1 != nil {
+		s.modules = append(s.modules, mod1)
+	}
 
 	sort.Slice(s.modules, func(i, j int) bool {
-		return strings.Compare(s.modules[i].baseuri, s.modules[j].baseuri) > 0
+		return strings.Compare(s.modules[i].Path, s.modules[j].Path) > 0
 	})
 }
 
-func (s *Service) Error() error {
-	return s.err
-}
-
-func (s *Service) Start() error {
+func (s *Service) Start(args ...interface{}) error {
 
 	//
 	if s.Config.UrlBasePath != "" {
-		s.Config.UrlBasePath = strings.Trim(filepath.Clean("/"+s.Config.UrlBasePath), "/")
+		s.Config.UrlBasePath = strings.TrimRight(filepath.Clean("/"+s.Config.UrlBasePath), "/")
 	}
 
 	//
-	network, localAddress := "tcp", s.Config.HttpAddr
+	network, localAddr := "tcp", s.Config.HttpAddr
 
 	// If the port is zero, treat the address as a fully qualified local address.
 	// This address must be prefixed with the network type followed by a colon,
@@ -180,164 +194,100 @@ func (s *Service) Start() error {
 			network = parts[0]
 		}
 		if len(parts) > 1 {
-			localAddress = parts[1]
+			localAddr = parts[1]
 		}
 	} else {
-		localAddress += fmt.Sprintf(":%d", s.Config.HttpPort)
+		localAddr += fmt.Sprintf(":%d", s.Config.HttpPort)
+	}
+
+	if len(args) > 0 {
+		for _, arg := range args {
+			switch arg.(type) {
+			case string:
+				if host, port, err := net.SplitHostPort(arg.(string)); err == nil {
+					localAddr = host + ":" + port
+				}
+			}
+		}
 	}
 
 	if network != "unix" && network != "tcp" {
-		hlog.Printf("fatal", "lessgo/httpsrv: Unknown Network %s", network)
+		s.logger.Fatalf("httpsrv: Unknown Network %s", network)
 		return errors.New("invalid network " + network)
 	}
 
 	//
 	if network == "unix" {
 		// TODO already in use
-		os.Remove(localAddress)
+		os.Remove(localAddr)
 	}
 
 	//
-	if s.Config.HttpTimeout < 3 {
+	if s.Config.HttpTimeout == 0 {
 		s.Config.HttpTimeout = 10
+	} else if s.Config.HttpTimeout < 1 {
+		s.Config.HttpTimeout = 1
+	} else if s.Config.HttpTimeout > 600 {
+		s.Config.HttpTimeout = 600
 	}
 
 	//
-	srvmux := http.NewServeMux()
+	mux := http.NewServeMux()
 
-	//
-	for rpcpath, rpcsrv := range s.rpcRegs {
-		srvmux.Handle(rpcpath, rpcsrv)
+	for _, h := range defaultHandlers {
+		mux.HandleFunc(h.pattern, h.handle)
 	}
 
 	//
-	for _, v := range s.handlers {
-
-		if v.handler != nil {
-			srvmux.Handle(v.base, *v.handler)
-			hlog.Printf("info", "lessgo/httpsrv: reg handler on %s", v.base)
+	sort.Slice(s.handlers, func(i, j int) bool {
+		return strings.Compare(s.handlers[i].pattern, s.handlers[j].pattern) < 0
+	})
+	for i, h := range s.handlers {
+		if s.Config.UrlBasePath != "" {
+			h.pattern = s.Config.UrlBasePath + h.pattern
 		}
-
-		if v.handler_func != nil {
-			srvmux.HandleFunc(v.base, *v.handler_func)
-			hlog.Printf("info", "lessgo/httpsrv: reg handler func on %s", v.base)
-		}
+		mux.HandleFunc(h.pattern, h.handle)
+		s.logger.Infof("httpsrv: reg handler #%02d, path %s", i, h.pattern)
 	}
-
-	//
-	srvmux.HandleFunc("/", s.handle)
 
 	//
 	s.server = &http.Server{
-		Addr:           localAddress,
-		Handler:        srvmux,
+		Addr:           localAddr,
+		Handler:        mux,
 		ReadTimeout:    time.Duration(s.Config.HttpTimeout) * time.Second,
 		WriteTimeout:   time.Duration(s.Config.HttpTimeout) * time.Second,
 		MaxHeaderBytes: 1 << 20,
 	}
 
 	//
-	listener, err := net.Listen(network, localAddress)
+	listener, err := net.Listen(network, localAddr)
 	if err != nil {
-		hlog.Printf("fatal", "lessgo/httpsrv: net.Listen error %v", err)
-		s.err = err
+		s.logger.Fatalf("httpsrv: net listen error %v", err)
 		return err
 	}
-	hlog.Printf("info", "lessgo/httpsrv: listening on %s/%s", network, localAddress)
+	s.logger.Infof("httpsrv: listening on %s/%s", network, localAddr)
 
 	if network == "unix" {
-		os.Chmod(localAddress, 0770)
+		os.Chmod(localAddr, 0770)
 	}
 
 	//
-	if err := s.server.Serve(listener); err != nil {
-		hlog.Printf("fatal", "lessgo/httpsrv: server.Serve error %v", err)
-		s.err = err
+	if err = s.server.Serve(listener); err != nil {
+		s.logger.Fatalf("httpsrv: start server fail %v", err)
 	}
 
-	return s.err
+	return err
+}
+
+func (s *Service) SetLogger(lg Logger) {
+	if lg != nil {
+		s.logger = lg
+		if _, ok := defaultLogger.(*emptyLogger); ok {
+			defaultLogger = lg
+		}
+	}
 }
 
 func (s *Service) Stop() error {
 	return nil
-}
-
-func (s *Service) handle(w http.ResponseWriter, r *http.Request) {
-
-	upgrade := r.Header.Get("Upgrade")
-
-	if upgrade == "websocket" || upgrade == "Websocket" {
-
-		websocket.Handler(func(ws *websocket.Conn) {
-			r.Method = "WS"
-			s.handleInternal(w, r, ws)
-		}).ServeHTTP(w, r)
-
-	} else {
-
-		s.handleInternal(w, r, nil)
-	}
-}
-
-func (s *Service) handleInternal(w http.ResponseWriter, r *http.Request, ws *websocket.Conn) {
-
-	defer func() {
-
-		if err := recover(); err != nil {
-			hlog.Printf("error", "handleInternal Panic on %s", err)
-		}
-
-		r.Body.Close()
-	}()
-
-	var (
-		req  = NewRequest(r)
-		resp = NewResponse(w)
-		c    = NewController(s, req, resp)
-		ae   = r.Header.Get("Accept-Encoding")
-	)
-
-	if ws != nil {
-		req.WebSocket = &WebSocket{
-			conn: ws,
-		}
-	}
-
-	if s.Config.CompressResponse {
-		if resp.buf == nil {
-			resp.buf = &bytes.Buffer{}
-		}
-		if strings.Contains(ae, "gzip") {
-			resp.compWriter, ae = gzip.NewWriter(resp.buf), "gzip"
-		} else if strings.Contains(ae, "br") {
-			resp.compWriter, ae = brotli.NewWriterLevel(resp.buf, 5), "br"
-		}
-	}
-
-	for _, filter := range s.Filters {
-		filter(c)
-	}
-
-	if resp.compWriter != nil {
-		resp.compWriter.Flush()
-		resp.compWriter.Close()
-
-		if w.Header().Get("Content-Encoding") == "" && resp.buf.Len() > 0 {
-			if ae == "gzip" {
-				w.Header().Set("Content-Encoding", "gzip")
-			} else if ae == "br" {
-				w.Header().Set("Content-Encoding", "br")
-			}
-		}
-	}
-
-	if resp.buf != nil && resp.buf.Len() > 0 {
-		w.Header().Set("Content-Length", strconv.Itoa(resp.buf.Len()))
-		if resp.Status > 0 {
-			w.WriteHeader(resp.Status)
-		}
-		w.Write(resp.buf.Bytes())
-	} else if resp.Status > 0 {
-		w.WriteHeader(resp.Status)
-	}
 }

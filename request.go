@@ -17,43 +17,49 @@ package httpsrv
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/hooto/httpsrv/internal/lru"
 )
 
 type Request struct {
 	*http.Request
 	ContentType    string
-	AcceptLanguage []AcceptLanguage
+	acceptLanguage []*acceptLanguage
 	Locale         string
-	RequestPath    string
-	UrlPathExtra   string
-	RawBody        []byte
-	WebSocket      *WebSocket
+	// RequestPath    string
+	// UrlPathExtra   string
+	// WebSocket *WebSocket
+
+	bodyRead   bool
+	bodyBuffer bytes.Buffer
 }
 
-func NewRequest(r *http.Request) *Request {
+func newRequest(r *http.Request) *Request {
 
 	req := &Request{
 		Request:        r,
 		ContentType:    resolveContentType(r),
-		AcceptLanguage: resolveAcceptLanguage(r),
+		acceptLanguage: resolveAcceptLanguage(r),
 		Locale:         "",
-		RawBody:        []byte{},
-	}
-
-	if req.Body != nil {
-
-		if body, err := ioutil.ReadAll(req.Body); err == nil {
-			req.RawBody = body
-			req.Body = ioutil.NopCloser(bytes.NewReader(req.RawBody))
-		}
+		bodyRead:       false,
 	}
 
 	return req
+}
+
+func (req *Request) RawBody() []byte {
+	if !req.bodyRead {
+		if _, err := io.Copy(&req.bodyBuffer, req.Body); err != nil {
+			//
+		}
+		req.bodyRead = true
+	}
+	return req.bodyBuffer.Bytes()
 }
 
 func (req *Request) RawAbsUrl() string {
@@ -69,25 +75,23 @@ func (req *Request) RawAbsUrl() string {
 
 func (req *Request) JsonDecode(obj interface{}) error {
 
-	if len(req.RawBody) < 2 {
+	if len(req.RawBody()) < 2 {
 		return fmt.Errorf("No Data Found")
 	}
 
-	return jsonDecode(req.RawBody, obj)
+	return jsonDecode(req.RawBody(), obj)
 }
 
 // Get the content type.
 // e.g. From "multipart/form-data; boundary=--" to "multipart/form-data"
 // If none is specified, returns "text/html" by default.
 func resolveContentType(r *http.Request) string {
-
-	contentType := r.Header.Get("Content-Type")
-
-	if contentType == "" {
+	v := r.Header.Get("Content-Type")
+	if v == "" {
 		return "text/html"
 	}
-
-	return strings.ToLower(strings.TrimSpace(strings.Split(contentType, ";")[0]))
+	base, _, _ := strings.Cut(v, ";")
+	return strings.ToLower(strings.TrimSpace(base))
 }
 
 // Resolve the Accept-Language header value.
@@ -99,37 +103,63 @@ func resolveContentType(r *http.Request) string {
 // (http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.4) for more details.
 func resolveAcceptLanguage(r *http.Request) acceptLanguages {
 
+	var k = r.Header.Get("Accept-Language")
+	if k == "" {
+		return make(acceptLanguages, 0)
+	}
+
+	o, ok := acceptLanguageCache.Get(k)
+	if ok {
+		return o.(acceptLanguages)
+	}
+
 	var (
-		rals = strings.Split(r.Header.Get("Accept-Language"), ",")
-		als  = make(acceptLanguages, len(rals))
+		rals = strings.Split(k, ",")
+		als  = make(acceptLanguages, 0)
 	)
 
-	for i, v := range rals {
+	if len(als) > 0 {
+		for i, v := range rals {
 
-		if v2 := strings.Split(v, ";q="); len(v2) == 2 {
-			quality, err := strconv.ParseFloat(v2[1], 32)
-			if err != nil {
-				quality = 1
+			if bef, aft, ok := strings.Cut(v, ";q="); ok {
+				quality, err := strconv.ParseFloat(aft, 32)
+				if err != nil {
+					quality = 1
+				}
+				als = append(als, &acceptLanguage{
+					Language: bef,
+					Quality:  float32(quality),
+				})
+			} else {
+				als = append(als, &acceptLanguage{
+					Language: v,
+					Quality:  1,
+				})
 			}
-			als[i] = AcceptLanguage{v2[0], float32(quality)}
-		} else if len(v2) == 1 {
-			als[i] = AcceptLanguage{v, 1}
+			if i >= 5 {
+				break
+			}
+		}
+		if len(als) > 1 {
+			sort.Sort(als)
 		}
 	}
 
-	sort.Sort(als)
+	acceptLanguageCache.Add(k, als)
 
 	return als
 }
 
+var acceptLanguageCache = lru.New(1024)
+
 // A single language from the Accept-Language HTTP header.
-type AcceptLanguage struct {
+type acceptLanguage struct {
 	Language string
 	Quality  float32
 }
 
-// A collection of sortable AcceptLanguage instances.
-type acceptLanguages []AcceptLanguage
+// A collection of sortable acceptLanguage instances.
+type acceptLanguages []*acceptLanguage
 
 func (al acceptLanguages) Len() int           { return len(al) }
 func (al acceptLanguages) Swap(i, j int)      { al[i], al[j] = al[j], al[i] }
@@ -143,4 +173,10 @@ func (al acceptLanguages) String() string {
 		}
 	}
 	return output.String()
+}
+
+func (it *acceptLanguage) set(lang string, qua float32) *acceptLanguage {
+	it.Language = lang
+	it.Quality = qua
+	return it
 }
