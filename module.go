@@ -25,7 +25,8 @@ import (
 var (
 	DefaultModule = &Module{
 		controllers: make(map[string]interface{}),
-		viewpaths:   []string{},
+		idxHandlers: make(map[string]*regHandler),
+		routes:      make(map[string]*regRouter),
 	}
 
 	DefaultModules = []*Module{}
@@ -37,11 +38,15 @@ type Module struct {
 	viewpaths   []string
 	viewfss     []http.FileSystem
 	handlers    []*regHandler
+	idxHandlers map[string]*regHandler
+	routes      map[string]*regRouter
 }
 
 func NewModule() *Module {
 	return &Module{
 		controllers: make(map[string]interface{}),
+		idxHandlers: make(map[string]*regHandler),
+		routes:      make(map[string]*regRouter),
 	}
 }
 
@@ -87,6 +92,17 @@ func (m *Module) SetTemplateFileSystem(fss ...http.FileSystem) {
 	}
 }
 
+func (m *Module) SetRoute(pattern string, params map[string]string) {
+	pattern = filepath.Clean(pattern)
+	if params == nil {
+		params = make(map[string]string)
+	}
+	m.routes[pattern] = &regRouter{
+		pattern: pattern,
+		params:  params,
+	}
+}
+
 func (m *Module) RegisterStaticFileSystem(pattern string, fs http.FileSystem) {
 	m.handlers = append(m.handlers, &regHandler{
 		pattern: pattern,
@@ -105,7 +121,17 @@ func (m *Module) RegisterStaticFilepath(pattern, path string) {
 	})
 }
 
-func (m *Module) RegisterController(c interface{}) {
+func (m *Module) RegisterController(args ...interface{}) {
+	for _, c := range args {
+		m.registerController(c)
+	}
+}
+
+func (m *Module) registerController(c interface{}) {
+
+	if c == nil {
+		return
+	}
 
 	cval := reflect.ValueOf(c)
 	if !cval.IsValid() {
@@ -130,14 +156,36 @@ func (m *Module) RegisterController(c interface{}) {
 			continue
 		}
 
-		m.handlers = append(m.handlers, &regHandler{
-			pattern: strings.ToLower(fmt.Sprintf("/%s/%s", elem.Name(), am.Name[:len(am.Name)-6])),
-			handlerController: &handlerController{
-				Name:        elem.Name(),
-				ActionName:  am.Name[:len(am.Name)-6],
-				ctrlType:    elem,
-				ctrlIndexes: indexes,
-			},
-		})
+		hc := &handlerController{
+			Name:        elem.Name(),
+			ActionName:  am.Name[:len(am.Name)-6],
+			ctrlType:    elem,
+			ctrlIndexes: indexes,
+		}
+
+		indexKey := strings.ToLower(hc.Name + "/" + hc.ActionName)
+
+		h := &regHandler{
+			pattern:           "/" + indexKey,
+			handlerController: hc,
+		}
+
+		m.handlers = append(m.handlers, h)
+
+		m.idxHandlers[indexKey] = h
+
+		if am.Name == "IndexAction" {
+			m.handlers = append(m.handlers, &regHandler{
+				pattern:           strings.ToLower(fmt.Sprintf("/%s", elem.Name())),
+				handlerController: hc,
+			})
+
+			if elem.Name() == "Index" {
+				m.handlers = append(m.handlers, &regHandler{
+					pattern:           "/",
+					handlerController: hc,
+				})
+			}
+		}
 	}
 }

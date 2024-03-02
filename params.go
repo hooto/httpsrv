@@ -61,7 +61,7 @@ func (p *Params) init() {
 	}
 }
 
-func (p *Params) setValue(k, v string) {
+func (p *Params) SetValue(k, v string) {
 	p.init()
 	if p.values == nil {
 		p.values = make(url.Values)

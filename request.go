@@ -19,11 +19,16 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/hooto/httpsrv/internal/lru"
+)
+
+const (
+	kUrlRoutePath = "__httpsrv_url_route_path"
 )
 
 type Request struct {
@@ -34,6 +39,9 @@ type Request struct {
 	// RequestPath    string
 	// UrlPathExtra   string
 	// WebSocket *WebSocket
+
+	urlPath      string
+	urlRoutePath string
 
 	bodyRead   bool
 	bodyBuffer bytes.Buffer
@@ -60,6 +68,17 @@ func (req *Request) RawBody() []byte {
 		req.bodyRead = true
 	}
 	return req.bodyBuffer.Bytes()
+}
+
+func (req *Request) UrlPath() string {
+	if req.urlPath == "" {
+		req.urlPath = filepath.Clean("/" + req.Request.URL.Path)
+	}
+	return req.urlPath
+}
+
+func (req *Request) UrlRoutePath() string {
+	return req.urlRoutePath
 }
 
 func (req *Request) RawAbsUrl() string {

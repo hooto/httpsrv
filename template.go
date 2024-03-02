@@ -179,7 +179,7 @@ func (it *TemplateLoader) Render(wr io.Writer, modUrlBase, tplPath string, arg i
 		}
 	}()
 
-	defaultLogger.Infof("httpsrv: template (%s/%s) render", modUrlBase, tplPath)
+	// defaultLogger.Infof("httpsrv: template (%s/%s) render", modUrlBase, tplPath)
 
 	it.mu.RLock()
 	tplSet, ok := it.templateSets[modUrlBase]

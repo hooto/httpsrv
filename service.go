@@ -34,7 +34,8 @@ type Service struct {
 	Config  Config
 	Filters []Filter
 
-	server *http.Server
+	muxServer *http.ServeMux
+	server    *http.Server
 
 	modules  []*Module
 	handlers []*regHandler
@@ -58,7 +59,7 @@ func NewService() *Service {
 
 		modules: DefaultModules,
 
-		handlers: []*regHandler{},
+		handlers: defaultHandlers,
 
 		logger: defaultLogger,
 
@@ -72,24 +73,28 @@ func NewService() *Service {
 func (s *Service) regHandler(h *regHandler) {
 	h.service = s
 	h.pattern = filepath.Clean(h.pattern)
-	if h.handlerStatic != nil && !strings.HasSuffix(h.pattern, "/") {
+	// if h.handlerStatic != nil && !strings.HasSuffix(h.pattern, "/") {
+	if !strings.HasSuffix(h.pattern, "/") {
 		h.pattern += "/"
 	}
 	if h.params == nil {
 		h.params = map[string]string{}
 	}
-	{
-		names := strings.Split(h.pattern, "/")
-		for i, pname := range names {
-			if len(pname) > 2 && pname[0] == '{' && pname[len(pname)-1] == '}' {
-				h.params[pname[1:len(pname)-1]] = ""
-			} else if len(pname) > 1 && pname[0] == ':' {
-				h.params[pname[1:]] = ""
-				names[i] = "{" + pname[1:] + "}"
-			}
+
+	h.patFields = strings.Split(h.pattern, "/")
+	for i, pname := range h.patFields {
+		if len(pname) > 2 && pname[0] == '{' && pname[len(pname)-1] == '}' {
+			h.params[pname[1:len(pname)-1]] = ""
+		} else if len(pname) > 1 && pname[0] == ':' {
+			h.params[pname[1:]] = ""
+			h.patFields[i] = "{" + pname[1:] + "}"
 		}
-		h.pattern = strings.Join(names, "/")
 	}
+	if len(h.params) > 0 {
+		h.pattern = strings.Join(h.patFields, "/")
+		h.patFieldN = len(h.patFields)
+	}
+
 	for i, v := range s.handlers {
 		if v.pattern == h.pattern {
 			s.handlers[i] = h
@@ -116,13 +121,6 @@ func (s *Service) HandleHttp(method, pattern string, fn func(ctx *Context) error
 		handlerContext: fn,
 	})
 }
-
-// func (s *Service) Handle(pattern string, h http.Handler) {
-// 	s.regHandler(&regHandler{
-// 		pattern: pattern,
-// 		handler: &h,
-// 	})
-// }
 
 func (s *Service) HandleFunc(pattern string, h func(w http.ResponseWriter, r *http.Request)) {
 	s.regHandler(&regHandler{
@@ -155,6 +153,27 @@ func (s *Service) HandleModule(pattern string, mod *Module) {
 				handlerStatic: h.handlerStatic,
 			})
 		}
+	}
+
+	for _, r := range mod.routes {
+		ctrl, ok := r.params["controller"]
+		if !ok {
+			ctrl = "Index"
+		}
+		action, ok := r.params["action"]
+		if !ok {
+			action = "Index"
+		}
+		k := strings.ToLower(ctrl + "/" + action)
+		h, ok := mod.idxHandlers[k]
+		if !ok || h.handlerController == nil {
+			continue
+		}
+		h.handlerController.ModPath = mod1.Path
+		s.regHandler(&regHandler{
+			pattern:           filepath.Clean(mod1.Path + "/" + r.pattern),
+			handlerController: h.handlerController,
+		})
 	}
 
 	s.TemplateLoader.Set(mod1.Path, mod1.viewpaths, mod1.viewfss)
@@ -234,10 +253,6 @@ func (s *Service) Start(args ...interface{}) error {
 	//
 	mux := http.NewServeMux()
 
-	for _, h := range defaultHandlers {
-		mux.HandleFunc(h.pattern, h.handle)
-	}
-
 	//
 	sort.Slice(s.handlers, func(i, j int) bool {
 		return strings.Compare(s.handlers[i].pattern, s.handlers[j].pattern) < 0
@@ -251,12 +266,15 @@ func (s *Service) Start(args ...interface{}) error {
 	}
 
 	//
+	s.muxServer = mux
+
 	s.server = &http.Server{
 		Addr:           localAddr,
-		Handler:        mux,
 		ReadTimeout:    time.Duration(s.Config.HttpTimeout) * time.Second,
 		WriteTimeout:   time.Duration(s.Config.HttpTimeout) * time.Second,
 		MaxHeaderBytes: 1 << 20,
+		Handler:        mux,
+		// Handler: &rootHandler{mux},
 	}
 
 	//

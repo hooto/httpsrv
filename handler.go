@@ -29,9 +29,11 @@ import (
 )
 
 type regHandler struct {
-	service *Service
-	method  string
-	pattern string
+	service   *Service
+	method    string
+	pattern   string
+	patFields []string
+	patFieldN int
 
 	params map[string]string
 
@@ -49,6 +51,24 @@ type handlerStaticFile struct {
 	filepath string
 }
 
+type rootHandler struct {
+	mux *http.ServeMux
+}
+
+type regRouter struct {
+	method     string
+	pattern    string
+	params     map[string]string
+	controller string
+	action     string
+}
+
+func (it *rootHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	h, p := it.mux.Handler(r)
+	r.SetPathValue(kUrlRoutePath, p)
+	h.ServeHTTP(w, r)
+}
+
 var (
 	genArgs = []reflect.Value{}
 )
@@ -57,7 +77,7 @@ func (it *regHandler) handle(w http.ResponseWriter, r *http.Request) {
 
 	if it.handlerStatic != nil {
 
-		urlPath := filepath.Clean(r.URL.Path)
+		urlPath := filepath.Clean("/" + r.URL.Path)
 		if !strings.HasPrefix(urlPath, it.pattern) {
 			return
 		}
@@ -92,6 +112,8 @@ func (it *regHandler) handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// r.SetPathValue(kUrlRoutePath, it.pattern)
+
 	if it.handlerFunc != nil {
 		it.handlerFunc(w, r)
 		return
@@ -104,13 +126,29 @@ func (it *regHandler) handle(w http.ResponseWriter, r *http.Request) {
 		ae   = r.Header.Get("Accept-Encoding")
 	)
 
+	{
+		if it.patFieldN > 0 {
+			var (
+				urlPath  = req.UrlPath()
+				urlPaths = strings.Split(urlPath, "/")
+			)
+			if len(urlPaths) >= (it.patFieldN - 1) {
+				req.urlRoutePath = strings.Join(urlPaths[:it.patFieldN-1], "/")
+			}
+		}
+
+		if req.urlRoutePath == "" {
+			req.urlRoutePath = it.pattern
+		}
+	}
+
 	for _, filter := range it.service.Filters {
 		filter(c)
 	}
 
 	if len(it.params) > 0 {
 		for name, _ := range it.params {
-			c.Params.setValue(name, r.PathValue(name))
+			c.Params.SetValue(name, r.PathValue(name))
 		}
 	}
 
