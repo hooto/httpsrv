@@ -1,4 +1,4 @@
-// Copyright 2015 Eryx <evorui аt gmаil dοt cοm>, All rights reserved.
+// Copyright 2015 Eryx <evorui at gmail dot com>, All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,8 +34,9 @@ type Service struct {
 	Config  Config
 	Filters []Filter
 
-	muxServer *http.ServeMux
-	server    *http.Server
+	router *rootRouter
+
+	server *http.Server
 
 	modules  []*Module
 	handlers []*regHandler
@@ -61,6 +62,8 @@ func NewService() *Service {
 
 		handlers: defaultHandlers,
 
+		router: &rootRouter{},
+
 		logger: defaultLogger,
 
 		TemplateLoader: &TemplateLoader{
@@ -71,39 +74,25 @@ func NewService() *Service {
 }
 
 func (s *Service) regHandler(h *regHandler) {
+
 	h.service = s
-	h.pattern = filepath.Clean(h.pattern)
-	// if h.handlerStatic != nil && !strings.HasSuffix(h.pattern, "/") {
+	h.pattern = filepath.Clean("/" + h.pattern)
+
 	if !strings.HasSuffix(h.pattern, "/") {
 		h.pattern += "/"
-	}
-	if h.params == nil {
-		h.params = map[string]string{}
-	}
-
-	h.patFields = strings.Split(h.pattern, "/")
-	for i, pname := range h.patFields {
-		if len(pname) > 2 && pname[0] == '{' && pname[len(pname)-1] == '}' {
-			h.params[pname[1:len(pname)-1]] = ""
-		} else if len(pname) > 1 && pname[0] == ':' {
-			h.params[pname[1:]] = ""
-			h.patFields[i] = "{" + pname[1:] + "}"
-		}
-	}
-	if len(h.params) > 0 {
-		h.pattern = strings.Join(h.patFields, "/")
-		h.patFieldN = len(h.patFields)
 	}
 
 	for i, v := range s.handlers {
 		if v.pattern == h.pattern {
 			s.handlers[i] = h
+			s.logger.Infof("route reset %s", h.pattern)
 			return
 		}
 	}
 	s.handlers = append(s.handlers, h)
 }
 
+/**
 func (s *Service) HandleHttp(method, pattern string, fn func(ctx *Context) error) {
 	if fn == nil {
 		return
@@ -121,6 +110,7 @@ func (s *Service) HandleHttp(method, pattern string, fn func(ctx *Context) error
 		handlerContext: fn,
 	})
 }
+*/
 
 func (s *Service) HandleFunc(pattern string, h func(w http.ResponseWriter, r *http.Request)) {
 	s.regHandler(&regHandler{
@@ -146,11 +136,11 @@ func (s *Service) HandleModule(pattern string, mod *Module) {
 				pattern:           mod1.Path + "/" + h.pattern,
 				handlerController: h.handlerController,
 			})
-		} else if h.handlerStatic != nil {
-			h.handlerStatic.filepath = filepath.Clean(h.handlerStatic.filepath)
+		} else if h.handlerFileServer != nil {
+			h.handlerFileServer.filepath = filepath.Clean(h.handlerFileServer.filepath)
 			s.regHandler(&regHandler{
-				pattern:       filepath.Clean(mod1.Path + "/" + h.pattern),
-				handlerStatic: h.handlerStatic,
+				pattern:           filepath.Clean(mod1.Path + "/" + h.pattern),
+				handlerFileServer: h.handlerFileServer,
 			})
 		}
 	}
@@ -164,7 +154,7 @@ func (s *Service) HandleModule(pattern string, mod *Module) {
 		if !ok {
 			action = "Index"
 		}
-		k := strings.ToLower(ctrl + "/" + action)
+		k := controllerActionPattern(ctrl, action)
 		h, ok := mod.idxHandlers[k]
 		if !ok || h.handlerController == nil {
 			continue
@@ -251,30 +241,25 @@ func (s *Service) Start(args ...interface{}) error {
 	}
 
 	//
-	mux := http.NewServeMux()
-
-	//
 	sort.Slice(s.handlers, func(i, j int) bool {
 		return strings.Compare(s.handlers[i].pattern, s.handlers[j].pattern) < 0
 	})
-	for i, h := range s.handlers {
+	for _, h := range s.handlers {
 		if s.Config.UrlBasePath != "" {
 			h.pattern = s.Config.UrlBasePath + h.pattern
 		}
-		mux.HandleFunc(h.pattern, h.handle)
-		s.logger.Infof("httpsrv: reg handler #%02d, path %s", i, h.pattern)
+		// s.logger.Infof("httpsrv: reg handler #%02d, path %s", i, h.pattern)
+		s.router.add(h.pattern, h)
 	}
 
 	//
-	s.muxServer = mux
 
 	s.server = &http.Server{
 		Addr:           localAddr,
 		ReadTimeout:    time.Duration(s.Config.HttpTimeout) * time.Second,
 		WriteTimeout:   time.Duration(s.Config.HttpTimeout) * time.Second,
 		MaxHeaderBytes: 1 << 20,
-		Handler:        mux,
-		// Handler: &rootHandler{mux},
+		Handler:        &rootHandler{s},
 	}
 
 	//

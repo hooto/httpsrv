@@ -1,4 +1,4 @@
-// Copyright 2015 Eryx <evorui аt gmаil dοt cοm>, All rights reserved.
+// Copyright 2015 Eryx <evorui at gmail dot com>, All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,19 +24,19 @@ func SessionFilter(c *Controller) {
 	}
 }
 
-func (s *Session) Get(key string) string {
+func (s *Session) Value(key string) string {
 
 	if v, err := s.c.Request.Cookie(key); err == nil {
 		return v.Value
 	}
 
-	return s.c.Params.Get(key)
+	return s.c.Params.Value(key)
 }
 
 func (s *Session) AuthToken(key string) string {
 
 	if len(key) > 0 {
-		if tv := s.c.Params.Get(key); len(tv) > 10 {
+		if tv := s.c.Params.Value(key); len(tv) > 10 {
 			return tv
 		}
 

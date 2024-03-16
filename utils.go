@@ -1,4 +1,4 @@
-// Copyright 2015 Eryx <evorui аt gmаil dοt cοm>, All rights reserved.
+// Copyright 2015 Eryx <evorui at gmail dot com>, All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,9 +17,7 @@ package httpsrv
 import (
 	"bytes"
 	"encoding/json"
-	"reflect"
 	"sync"
-	"unsafe"
 )
 
 var bytesBufferPool = sync.Pool{
@@ -39,15 +37,18 @@ func jsonDecode(src []byte, v interface{}) error {
 	return json.Unmarshal(src, &v)
 }
 
-func b2s(b []byte) string {
-	return *(*string)(unsafe.Pointer(&b))
+func isAlnum(v byte) bool {
+	if (v >= 'A' && v <= 'Z') ||
+		(v >= 'a' && v <= 'z') ||
+		(v >= '0' && v <= '9') {
+		return true
+	}
+	return false
 }
 
-func s2b(s string) (b []byte) {
-	bh := (*reflect.SliceHeader)(unsafe.Pointer(&b))
-	sh := (*reflect.StringHeader)(unsafe.Pointer(&s))
-	bh.Data = sh.Data
-	bh.Cap = sh.Len
-	bh.Len = sh.Len
-	return b
+func isUpper(v byte) bool {
+	if v >= 'A' && v <= 'Z' {
+		return true
+	}
+	return false
 }

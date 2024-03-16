@@ -15,14 +15,14 @@ import (
 	"github.com/hooto/httpsrv"
 )
 
-func NewModule() httpsrv.Module {
+func NewModule() *httpsrv.Module {
 
-	module := httpsrv.NewModule("api-v1")
+	mod := httpsrv.NewModule()
     
-	module.ControllerRegister(new(User))
-	module.ControllerRegister(new(Role))
+	mod.RegisterController(new(User))
+	mod.RegisterController(new(Role))
 
-	return module
+	return mod
 }
 
 // User, Role 具体代码实现省略...
@@ -40,11 +40,11 @@ import (
 
 func main() {
 
-	httpsrv.GlobalService.ModuleRegister("/api/v1", v1.NewModule())
+	httpsrv.DefaultService.HandleModule("/api/v1", v1.NewModule())
 
-	httpsrv.GlobalService.Config.HttpPort = 8080
+	httpsrv.DefaultService.Config.HttpPort = 8080
 
-	httpsrv.GlobalService.Start()
+	httpsrv.DefaultService.Start()
 }
 ```
 
@@ -53,10 +53,10 @@ func main() {
 如果当前 Module 是一个前端UI类业务模块，需要视图模版，通过如下接口设置模版路径:
 
 ``` go
-func NewModule() httpsrv.Module {
-	module := httpsrv.NewModule("ui")
-	module.TemplatePathSet("/path/of/module/ui/views") // 模版本地文件的路径, 可谓一个模块设置 1 ~ N 个路径
-	return module
+func NewModule() *httpsrv.Module {
+	mod := httpsrv.NewModule("ui")
+	mod.SetTemplatePath("/path/of/module/ui/views") // 模版本地文件的路径, 可谓一个模块设置 1 ~ N 个路径
+	return mod
 }
 ```
 
@@ -65,14 +65,10 @@ func NewModule() httpsrv.Module {
 如果当前 Module 依赖静态文件，如 js, css, img 等, 通过如下接口设置路径
 
 ``` go
-func NewModule() httpsrv.Module {
-	module := httpsrv.NewModule("ui")
+func NewModule() *httpsrv.Module {
+	mod := httpsrv.NewModule()
 
-	module.RouteSet(httpsrv.Route{
-		Type:       httpsrv.RouteTypeStatic,
-		Path:       "assets",
-		StaticPath: "/path/of/static/files",
-	})
+	mod.RegisterFileServer("/assets", "/path/of/static/files", nil)
 
 	return module
 }
@@ -80,10 +76,10 @@ func NewModule() httpsrv.Module {
 
 注: 
 
-Route{Path: "assets"} 参数表示前端访问的 URL 路径为 Service.ModuleRegister(baseuri,...) 设置的 baseuri + "/assets/静态文件相对路径", 如:
+Route{Path: "assets"} 参数表示前端访问的 URL 路径为 Service.HandleModule(baseuri,...) 设置的 baseuri + "/assets/静态文件相对路径", 如:
 
 ``` go
-httpsrv.GlobalService.ModuleRegister("/cms", ui.NewModule())
+httpsrv.DefaultService.HandleModule("/cms", ui.NewModule())
 ```
 
 静态文件相对路径为 js/main.js, 则最终的 URL 静态文件访问路径是:

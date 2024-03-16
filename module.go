@@ -1,4 +1,4 @@
-// Copyright 2015 Eryx <evorui аt gmаil dοt cοm>, All rights reserved.
+// Copyright 2015 Eryx <evorui at gmail dot com>, All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -103,20 +103,12 @@ func (m *Module) SetRoute(pattern string, params map[string]string) {
 	}
 }
 
-func (m *Module) RegisterStaticFileSystem(pattern string, fs http.FileSystem) {
+func (m *Module) RegisterFileServer(pattern, path string, fs http.FileSystem) {
 	m.handlers = append(m.handlers, &regHandler{
 		pattern: pattern,
-		handlerStatic: &handlerStaticFile{
-			binFs: fs,
-		},
-	})
-}
-
-func (m *Module) RegisterStaticFilepath(pattern, path string) {
-	m.handlers = append(m.handlers, &regHandler{
-		pattern: pattern,
-		handlerStatic: &handlerStaticFile{
+		handlerFileServer: &handlerFileServer{
 			filepath: path,
+			binFs:    fs,
 		},
 	})
 }
@@ -163,18 +155,17 @@ func (m *Module) registerController(c interface{}) {
 			ctrlIndexes: indexes,
 		}
 
-		indexKey := strings.ToLower(hc.Name + "/" + hc.ActionName)
-
 		h := &regHandler{
-			pattern:           "/" + indexKey,
+			pattern:           controllerActionPattern(hc.Name, hc.ActionName),
 			handlerController: hc,
 		}
 
 		m.handlers = append(m.handlers, h)
 
-		m.idxHandlers[indexKey] = h
+		m.idxHandlers[h.pattern] = h
 
 		if am.Name == "IndexAction" {
+
 			m.handlers = append(m.handlers, &regHandler{
 				pattern:           strings.ToLower(fmt.Sprintf("/%s", elem.Name())),
 				handlerController: hc,

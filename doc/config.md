@@ -36,11 +36,11 @@ import (
 
 func main() {
 	// 通过全局 Service 实例引用 
-	httpsrv.GlobalService.Config.HttpPort = 8080
+	httpsrv.DefaultService.Config.HttpPort = 8080
 
 	// 新建 Service 实例引用
-	server := httpsrv.NewService()
-	server.Config.HttpPort = 8081
+	srv := httpsrv.NewService()
+	srv.Config.HttpPort = 8081
 }
 ```
 
@@ -65,7 +65,7 @@ func ExampleUpper(v string) string {
 func main() {
 	var conf httpsrv.Config
 	// ...
-	conf.TemplateFuncRegister("upper", ExampleUpper)
+	conf.RegisterTemplateFunc("upper", ExampleUpper)
 }
 ```
 

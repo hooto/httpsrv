@@ -1,4 +1,4 @@
-// Copyright 2015 Eryx <evorui аt gmаil dοt cοm>, All rights reserved.
+// Copyright 2015 Eryx <evorui at gmail dot com>, All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,18 +27,11 @@ import (
 	"github.com/hooto/httpsrv/internal/lru"
 )
 
-const (
-	kUrlRoutePath = "__httpsrv_url_route_path"
-)
-
 type Request struct {
 	*http.Request
 	ContentType    string
 	acceptLanguage []*acceptLanguage
 	Locale         string
-	// RequestPath    string
-	// UrlPathExtra   string
-	// WebSocket *WebSocket
 
 	urlPath      string
 	urlRoutePath string
@@ -46,6 +39,14 @@ type Request struct {
 	bodyRead   bool
 	bodyBuffer bytes.Buffer
 }
+
+// A single language from the Accept-Language HTTP header.
+type acceptLanguage struct {
+	Language string
+	Quality  float32
+}
+
+var acceptLanguageCache = lru.New(1024)
 
 func newRequest(r *http.Request) *Request {
 
@@ -169,12 +170,10 @@ func resolveAcceptLanguage(r *http.Request) acceptLanguages {
 	return als
 }
 
-var acceptLanguageCache = lru.New(1024)
-
-// A single language from the Accept-Language HTTP header.
-type acceptLanguage struct {
-	Language string
-	Quality  float32
+func (it *acceptLanguage) set(lang string, qua float32) *acceptLanguage {
+	it.Language = lang
+	it.Quality = qua
+	return it
 }
 
 // A collection of sortable acceptLanguage instances.
@@ -192,10 +191,4 @@ func (al acceptLanguages) String() string {
 		}
 	}
 	return output.String()
-}
-
-func (it *acceptLanguage) set(lang string, qua float32) *acceptLanguage {
-	it.Language = lang
-	it.Quality = qua
-	return it
 }

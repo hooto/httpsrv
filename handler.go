@@ -1,4 +1,4 @@
-// Copyright 2015 Eryx <evorui аt gmаil dοt cοm>, All rights reserved.
+// Copyright 2015 Eryx <evorui at gmail dot com>, All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,62 +29,75 @@ import (
 )
 
 type regHandler struct {
-	service   *Service
-	method    string
-	pattern   string
-	patFields []string
-	patFieldN int
+	service *Service
+	method  string
+	pattern string
 
-	params map[string]string
-
-	handler           *http.Handler
 	handlerFunc       func(w http.ResponseWriter, r *http.Request)
 	handlerController *handlerController
-	handlerContext    func(ctx *Context) error
-	handlerStatic     *handlerStaticFile
-
-	invoker interface{}
+	handlerFileServer *handlerFileServer
+	// handlerContext    func(ctx *Context) error
 }
 
-type handlerStaticFile struct {
+type handlerFileServer struct {
 	binFs    http.FileSystem
 	filepath string
 }
 
 type rootHandler struct {
-	mux *http.ServeMux
+	service *Service
 }
 
-type regRouter struct {
-	method     string
-	pattern    string
-	params     map[string]string
-	controller string
-	action     string
+var genArgs = []reflect.Value{}
+
+var defaultHandlers = []*regHandler{
+	{
+		pattern: "/",
+		handlerFunc: func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprintln(w, `page not found`)
+		},
+	},
 }
 
 func (it *rootHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	h, p := it.mux.Handler(r)
-	r.SetPathValue(kUrlRoutePath, p)
-	h.ServeHTTP(w, r)
+	h, urlPath, urlRoutePath := it.service.router.find(r)
+	h.handle(w, r, urlPath, urlRoutePath)
 }
 
-var (
-	genArgs = []reflect.Value{}
-)
+func (it *regHandler) info() string {
+	ar := []string{}
+	if it.method != "" {
+		ar = append(ar, it.method)
+	}
+	ar = append(ar, it.pattern)
+	if it.handlerFunc != nil {
+		ar = append(ar, "func")
+	} else if it.handlerController != nil {
+		ar = append(ar, "ctrl "+it.handlerController.Name+"/"+it.handlerController.ActionName)
+	} else if it.handlerFileServer != nil {
+		if it.handlerFileServer.binFs != nil {
+			ar = append(ar, "fs (bin)")
+		} else {
+			ar = append(ar, "fs ("+it.handlerFileServer.filepath+")")
+		}
+		// } else if it.handlerContext != nil {
+		// 	ar = append(ar, "ctx")
+	}
+	return strings.Join(ar, " ")
+}
 
-func (it *regHandler) handle(w http.ResponseWriter, r *http.Request) {
+func (it *regHandler) handle(w http.ResponseWriter, r *http.Request,
+	urlPath, urlRoutePath string) {
 
-	if it.handlerStatic != nil {
+	if it.handlerFileServer != nil {
 
-		urlPath := filepath.Clean("/" + r.URL.Path)
 		if !strings.HasPrefix(urlPath, it.pattern) {
 			return
 		}
 		subPath := urlPath[len(it.pattern)-1:]
 
-		if it.handlerStatic.binFs != nil {
-			if fp, err := it.handlerStatic.binFs.Open(subPath); err == nil {
+		if it.handlerFileServer.binFs != nil {
+			if fp, err := it.handlerFileServer.binFs.Open(subPath); err == nil {
 				defer fp.Close()
 				if st, err := fp.Stat(); err == nil {
 					http.ServeContent(w, r, st.Name(), st.ModTime(), fp)
@@ -95,7 +108,7 @@ func (it *regHandler) handle(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		file := filepath.Clean(it.handlerStatic.filepath + "/" + subPath)
+		file := filepath.Clean(it.handlerFileServer.filepath + "/" + subPath)
 
 		finfo, err := os.Stat(file)
 		if err != nil {
@@ -112,8 +125,6 @@ func (it *regHandler) handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// r.SetPathValue(kUrlRoutePath, it.pattern)
-
 	if it.handlerFunc != nil {
 		it.handlerFunc(w, r)
 		return
@@ -126,30 +137,11 @@ func (it *regHandler) handle(w http.ResponseWriter, r *http.Request) {
 		ae   = r.Header.Get("Accept-Encoding")
 	)
 
-	{
-		if it.patFieldN > 0 {
-			var (
-				urlPath  = req.UrlPath()
-				urlPaths = strings.Split(urlPath, "/")
-			)
-			if len(urlPaths) >= (it.patFieldN - 1) {
-				req.urlRoutePath = strings.Join(urlPaths[:it.patFieldN-1], "/")
-			}
-		}
-
-		if req.urlRoutePath == "" {
-			req.urlRoutePath = it.pattern
-		}
-	}
+	req.urlPath = urlPath
+	req.urlRoutePath = urlRoutePath
 
 	for _, filter := range it.service.Filters {
 		filter(c)
-	}
-
-	if len(it.params) > 0 {
-		for name, _ := range it.params {
-			c.Params.SetValue(name, r.PathValue(name))
-		}
 	}
 
 	if it.handlerController != nil {
@@ -196,10 +188,10 @@ func (it *regHandler) handle(w http.ResponseWriter, r *http.Request) {
 			execController.Call(genArgs)
 		}
 
-	} else if it.handlerContext != nil {
-		it.handlerContext(&Context{
-			c: c,
-		})
+		// } else if it.handlerContext != nil {
+		// 	it.handlerContext(&Context{
+		// 		c: c,
+		// 	})
 	}
 
 	if c.AutoRender {
@@ -236,15 +228,6 @@ func (it *regHandler) handle(w http.ResponseWriter, r *http.Request) {
 	} else if resp.Status > 0 {
 		w.WriteHeader(resp.Status)
 	}
-}
-
-var defaultHandlers = []*regHandler{
-	{
-		pattern: "/",
-		handlerFunc: func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprintln(w, `page not found`)
-		},
-	},
 }
 
 func handlerPathSlice(path string) (string, []string) {

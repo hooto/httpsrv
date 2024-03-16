@@ -23,39 +23,38 @@ import (
     "github.com/hooto/httpsrv"
 )
 
-type Index struct {
+type Hello struct {
     *httpsrv.Controller
 }
 
-func (c Index) IndexAction() {
+func (c Hello) WorldAction() {
     c.RenderString("hello world")
 }
 
-// init one module
-func NewModule() httpsrv.Module {
-
-	module := httpsrv.NewModule("default")
-
-	//register controller to module
-	module.ControllerRegister(new(Index))
-
-	return module
-}
-
-
 func main() {
 
-    // srv := httpsrv.NewService()
+	mod := httpsrv.NewModule()
 
-    // register module to httpsrv
-    httpsrv.GlobalService.ModuleRegister("/", NewModule())
+	mod.RegisterController(new(Hello))
 
-    // listening on port 8080
-    httpsrv.GlobalService.Config.HttpPort = 8080
+	srv := httpsrv.NewService()
 
-    // start
-    httpsrv.GlobalService.Start()
+	srv.SetLogger(httpsrv.NewRawLogger())
+
+	srv.HandleModule("/demo", mod)
+
+	srv.Start(":3000")
 }
+```
+
+```shell
+go run hello.go
+```
+
+```shell
+curl http://localhost:3000/demo/hello/world/
+
+hello world
 ```
 
 ## Licensing

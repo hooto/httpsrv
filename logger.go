@@ -1,4 +1,4 @@
-// Copyright 2015 Eryx <evorui аt gmаil dοt cοm>, All rights reserved.
+// Copyright 2015 Eryx <evorui at gmail dot com>, All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 package httpsrv
 
 import (
+	"fmt"
 	"log"
 )
 
@@ -55,21 +56,21 @@ func NewRawLogger() Logger {
 }
 
 func (it *rawLogger) Debugf(format string, v ...interface{}) {
-	it.log.Printf(format, v...)
+	it.log.Output(2, fmt.Sprintf(format, v...))
 }
 
 func (it *rawLogger) Infof(format string, v ...interface{}) {
-	it.log.Printf(format, v...)
+	it.log.Output(2, fmt.Sprintf(format, v...))
 }
 
 func (it *rawLogger) Warnf(format string, v ...interface{}) {
-	it.log.Printf(format, v...)
+	it.log.Output(2, fmt.Sprintf(format, v...))
 }
 
 func (it *rawLogger) Errorf(format string, v ...interface{}) {
-	it.log.Printf(format, v...)
+	it.log.Output(2, fmt.Sprintf(format, v...))
 }
 
 func (it *rawLogger) Fatalf(format string, v ...interface{}) {
-	it.log.Printf(format, v...)
+	it.log.Output(2, fmt.Sprintf(format, v...))
 }

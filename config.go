@@ -1,4 +1,4 @@
-// Copyright 2015 Eryx <evorui аt gmаil dοt cοm>, All rights reserved.
+// Copyright 2015 Eryx <evorui at gmail dot com>, All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ var DefaultConfig = Config{
 	CookieKeySession: "access_token",
 }
 
-func (c *Config) TemplateFuncRegister(name string, fn interface{}) {
+func (c *Config) RegisterTemplateFunc(name string, fn interface{}) {
 	tplMut.Lock()
 	defer tplMut.Unlock()
 	TemplateFuncs[name] = fn

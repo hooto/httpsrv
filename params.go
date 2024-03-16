@@ -1,4 +1,4 @@
-// Copyright 2015 Eryx <evorui аt gmаil dοt cοm>, All rights reserved.
+// Copyright 2015 Eryx <evorui at gmail dot com>, All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -61,20 +61,23 @@ func (p *Params) init() {
 	}
 }
 
-func (p *Params) SetValue(k, v string) {
+func (p *Params) SetValue(key, value string) {
 	p.init()
 	if p.values == nil {
 		p.values = make(url.Values)
 	}
-	if p.values.Has(k) {
-		p.values[k] = append(p.values[k], v)
+	if p.values.Has(key) {
+		p.values[key] = append(p.values[key], value)
 	} else {
-		p.values[k] = []string{v}
+		p.values[key] = []string{value}
 	}
 }
 
-func (p *Params) Get(key string) string {
+func (p *Params) Value(key string) string {
 	p.init()
+	if v := p.request.PathValue(key); v != "" {
+		return v
+	}
 	if p.values != nil && p.values.Has(key) {
 		return p.values.Get(key)
 	}
@@ -87,11 +90,20 @@ func (p *Params) Get(key string) string {
 	return ""
 }
 
-func (p *Params) Int64(key string) int64 {
-	s := p.Get(key)
-	if s == "" {
-		return 0
+func (p *Params) IntValue(key string) int64 {
+	if s := p.Value(key); s != "" {
+		if i, e := strconv.ParseInt(s, 10, 64); e == nil {
+			return i
+		}
 	}
-	i64, _ := strconv.ParseInt(s, 10, 64)
-	return i64
+	return 0
+}
+
+func (p *Params) FloatValue(key string) float64 {
+	if s := p.Value(key); s != "" {
+		if f, e := strconv.ParseFloat(s, 64); e == nil {
+			return f
+		}
+	}
+	return 0
 }

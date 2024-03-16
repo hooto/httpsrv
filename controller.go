@@ -1,4 +1,4 @@
-// Copyright 2015 Eryx <evorui аt gmаil dοt cοm>, All rights reserved.
+// Copyright 2015 Eryx <evorui at gmail dot com>, All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -231,4 +231,24 @@ func findControllers(appControllerType reflect.Type) (indexes [][]int) {
 	}
 
 	return
+}
+
+func controllerActionPattern(ctrlName, actionName string) string {
+
+	var (
+		v  = "/" + ctrlName + "/" + actionName
+		b1 = []byte(v)
+		b2 []byte
+	)
+	for i, v := range b1 {
+		if isUpper(v) {
+			if i > 0 && !isUpper(b1[i-1]) && isAlnum(b1[i-1]) {
+				b2 = append(b2, '-')
+			}
+			b2 = append(b2, 'a'+(v-'A'))
+		} else {
+			b2 = append(b2, v)
+		}
+	}
+	return string(b2)
 }
