@@ -7,13 +7,6 @@ Documents:
 
 ## Quick Start
 
-Install httpsrv framework
-
-```shell
-go get -u github.com/hooto/httpsrv
-
-```
-
 first hello world demo
 
 ```go
@@ -52,7 +45,7 @@ go run hello.go
 ```
 
 ```shell
-curl http://localhost:3000/demo/hello/world/
+curl http://localhost:3000/demo/hello/world
 
 hello world
 ```

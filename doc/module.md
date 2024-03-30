@@ -19,8 +19,7 @@ func NewModule() *httpsrv.Module {
 
 	mod := httpsrv.NewModule()
     
-	mod.RegisterController(new(User))
-	mod.RegisterController(new(Role))
+	mod.RegisterController(new(User), new(Role))
 
 	return mod
 }

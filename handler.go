@@ -24,6 +24,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/andybalholm/brotli"
 )
@@ -60,8 +61,9 @@ var defaultHandlers = []*regHandler{
 }
 
 func (it *rootHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	reqTime := time.Now()
 	h, urlPath, urlRoutePath := it.service.router.find(r)
-	h.handle(w, r, urlPath, urlRoutePath)
+	h.handle(w, r, urlPath, urlRoutePath, reqTime)
 }
 
 func (it *regHandler) info() string {
@@ -86,8 +88,10 @@ func (it *regHandler) info() string {
 	return strings.Join(ar, " ")
 }
 
-func (it *regHandler) handle(w http.ResponseWriter, r *http.Request,
-	urlPath, urlRoutePath string) {
+func (it *regHandler) handle(
+	w http.ResponseWriter, r *http.Request,
+	urlPath, urlRoutePath string, reqTime time.Time,
+) {
 
 	if it.handlerFileServer != nil {
 
@@ -137,6 +141,7 @@ func (it *regHandler) handle(w http.ResponseWriter, r *http.Request,
 		ae   = r.Header.Get("Accept-Encoding")
 	)
 
+	req.Time = reqTime
 	req.urlPath = urlPath
 	req.urlRoutePath = urlRoutePath
 

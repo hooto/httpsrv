@@ -6,7 +6,6 @@
 * [Service](service.md)
 * [Config](config.md)
 * [Module](module.md)
-* [Router](router.md)
 * [Controller](controller.md)
 * [Template](template.md)
 

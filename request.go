@@ -23,12 +23,14 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/hooto/httpsrv/internal/lru"
 )
 
 type Request struct {
 	*http.Request
+	Time           time.Time
 	ContentType    string
 	acceptLanguage []*acceptLanguage
 	Locale         string
@@ -124,7 +126,7 @@ func resolveContentType(r *http.Request) string {
 func resolveAcceptLanguage(r *http.Request) acceptLanguages {
 
 	var k = r.Header.Get("Accept-Language")
-	if k == "" {
+	if k == "" || len(k) > 128 {
 		return make(acceptLanguages, 0)
 	}
 

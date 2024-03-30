@@ -33,7 +33,7 @@ type Controller struct {
 
 注:
 
-* httpsrv 内核根据 URL/router 规则匹配 Module/Controller/Action 并运行时
+* httpsrv 内核根据 URL/router 规则匹配 Module-Path/Controller/Action 并运行
 * 生命周期是以 HTTP Request/Response 为单位创建和销毁，各个请求之间完全隔离并线程安全, *Action() 方法引用 Controller 内置变量时其对应值只在本地请求中有效. 
 
 说明
@@ -59,28 +59,30 @@ httpsrv.Request 对象基于 go/net/http.Request, 并提供了部分扩展字段
 ``` go
 type Request struct {
 	*http.Request
+	Time           time.Time
 	ContentType    string
-	AcceptLanguage []AcceptLanguage
 	Locale         string
-	RequestPath    string
-	UrlPathExtra   string
-	RawBody        []byte
-	WebSocket      *WebSocket
 }
 ```
 
 | 项目 | 说明 |
 |----|----|
+| Time | 当前请求开始时间 |
 | ContentType | 当前请求的http/header `Content-Type` 值 |
-| AcceptLanguage | 当前请求的 http/header `Accept-Language` 值 |
 | Locale | 当启用 i18n 功能是, 当前值为 http 客户端指定的语言包名 |
-| RequestPath | 当前请求时的 URL Path 值 | 
-| UrlPathExtra | 当前请求时的 URL Path 截断前缀 `/basepath/{controller}/{action}` 后的值 | 
-| RawBody | 当前请求为 POST, PUT 时原始的数据 | 
-| WebSocket | 当前请求为 WebSocket 时所建立的连接对象实例 | 
 
 
 #### Request 对象实例所扩展的方法
+
+#### RawBody() []byte
+
+客户端 POST/PUT 原始 body 数据
+
+``` go
+func (c File) UploadAction() {
+    b := c.RawBody()
+}
+```
 
 #### JsonDecode(obj interface{}) error
 
@@ -106,7 +108,6 @@ httpsrv.Response 对象基于 go/net/http.ResponseWriter, 并提供了部分扩�
 ``` go
 type Response struct {
 	Status      int
-	ContentType string
 	Out         http.ResponseWriter
 }
 ```
@@ -114,7 +115,6 @@ type Response struct {
 | 项目 | 说明 |
 |----|----|
 | Status | 返回 Response 内容时的 HTTP 的标准状态码, 如 200, 404, .. |
-| ContentType | 返回 Response 内容时的内容类型 |
 | Out | 原始 IO 接口，返回 Response 内容时的原始数据写接口 |
 
 注: httpsrv.Controller 基于 Response 封装了部分快捷接口，如 c.Render(), c.RenderJson() 等，详细请参考后续说明.
@@ -125,8 +125,8 @@ type Response struct {
 
 ``` go
 func (c User) EntryAction() {
-	id_string := c.Params.Get("id")
-	id_int64 := c.Params.Int64("age")
+	id := c.Params.Value("id")
+	age := c.Params.IntValue("age")
 	// ...
 }
 ```

@@ -90,6 +90,8 @@ func (c *Controller) Render(args ...interface{}) {
 		c.Response.Header().Set("Content-Type", "text/html; charset=utf-8")
 		c.Response.Out.WriteHeader(http.StatusBadRequest)
 		c.Response.Out.Write([]byte("400 Bad Request"))
+		c.service.logger.Debugf("tpl render fail mod-path %s, template-path %s, err %s",
+			modPath, templatePath, err.Error())
 	} else {
 		c.Response.Header().Set("Content-Type", "text/html; charset=utf-8")
 		c.Response.WriteHeader(http.StatusOK)

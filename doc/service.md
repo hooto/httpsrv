@@ -41,21 +41,21 @@ func (c Account) LoginAction() {
 }
 
 // 构建一个模块示例
-func NewUserModule() httpsrv.Module {
+func NewUserModule() *httpsrv.Module {
 
 	// 初始化一个空的模块
-	module := httpsrv.NewModule("user-v1")
+	mod := httpsrv.NewModule()
     
 	// 注册一个控制器到模块中
-	module.ControllerRegister(new(Account))
+	mod.ControllerRegister(new(Account))
 
-	return module
+	return mod
 }
 
 func main() {
 
 	// 将这个模块注册到服务里 (挂载到 URL 路径为 /user 对外提供服务, 可配置)
-	httpsrv.GlobalService.ModuleRegister("/user", NewUserModule())
+	httpsrv.GlobalService.HandleModule("/user", NewUserModule())
 
 	// 设置服务端口
 	httpsrv.GlobalService.Config.HttpPort = 8080
@@ -72,7 +72,7 @@ go build -o demo-server main.go
 ./demo-server
 ```
 
-按照 `/baseuri/{controller}/{action}` 的全局名称约定，以上服务通过 http://localhost:8080/user/account/login 访问.
+按照 `/{module-path}/{controller}/{action}` 的全局名称约定，以上服务通过 http://localhost:8080/user/account/login 访问.
 
 
 ## 多 Service 并存
@@ -100,10 +100,10 @@ func (c ApiDemo) ExampleAction() {
 }
 
 // 构建API模块
-func NewApiModule() httpsrv.Module {
-	module := httpsrv.NewModule("api-v1")
-	module.ControllerRegister(new(ApiDemo))
-	return module
+func NewApiModule() *httpsrv.Module {
+	mod := httpsrv.NewModule()
+	mod.RegisterController(new(ApiDemo))
+	return mod
 }
 
 type Index struct {
@@ -115,21 +115,21 @@ func (c Index) IndexAction() {
 }
 
 // 构建前端模块
-func NewFrontendModule() httpsrv.Module {
-	module := httpsrv.NewModule("ui-v1")
-	module.ControllerRegister(new(Index))
-	return module
+func NewFrontendModule() *httpsrv.Module {
+	mod := httpsrv.NewModule()
+	mod.RegisterController(new(Index))
+	return mod
 }
 
 func main() {
 
 	serviceFrontend := httpsrv.NewService()
 	serviceFrontend.Config.HttpPort = 80
-	serviceFrontend.ModuleRegister("/", NewFrontendModule())
+	serviceFrontend.HandleModule("/", NewFrontendModule())
 
 	serviceApi := httpsrv.NewService()
 	serviceApi.Config.HttpPort = 8080
-	serviceApi.ModuleRegister("/api/v1", NewApiModule())
+	serviceApi.HandleModule("/api/v1", NewApiModule())
 
 
 	// 启动前端服务
