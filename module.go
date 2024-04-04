@@ -24,7 +24,6 @@ import (
 
 var (
 	DefaultModule = &Module{
-		controllers: make(map[string]interface{}),
 		idxHandlers: make(map[string]*regHandler),
 		routes:      make(map[string]*regRouter),
 	}
@@ -34,7 +33,6 @@ var (
 
 type Module struct {
 	Path        string
-	controllers map[string]interface{}
 	viewpaths   []string
 	viewfss     []http.FileSystem
 	handlers    []*regHandler
@@ -44,7 +42,6 @@ type Module struct {
 
 func NewModule() *Module {
 	return &Module{
-		controllers: make(map[string]interface{}),
 		idxHandlers: make(map[string]*regHandler),
 		routes:      make(map[string]*regRouter),
 	}

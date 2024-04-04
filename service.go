@@ -122,21 +122,29 @@ func (s *Service) HandleFunc(pattern string, h func(w http.ResponseWriter, r *ht
 func (s *Service) HandleModule(pattern string, mod *Module) {
 
 	mod1 := &Module{
-		Path:        filepath.Clean(pattern),
-		viewpaths:   mod.viewpaths,
-		viewfss:     mod.viewfss,
-		controllers: mod.controllers,
+		Path:      filepath.Clean(pattern),
+		viewpaths: mod.viewpaths,
+		viewfss:   mod.viewfss,
+	}
+
+	modr := &handlerModuler{
+		actions: map[string]*handlerController{},
 	}
 
 	for _, h := range mod.handlers {
 
 		if h.handlerController != nil {
+			//
 			h.handlerController.ModPath = mod1.Path
 			s.regHandler(&regHandler{
 				pattern:           mod1.Path + "/" + h.pattern,
 				handlerController: h.handlerController,
 			})
+			//
+			modr.actions[h.pattern] = h.handlerController
+
 		} else if h.handlerFileServer != nil {
+			//
 			h.handlerFileServer.filepath = filepath.Clean(h.handlerFileServer.filepath)
 			s.regHandler(&regHandler{
 				pattern:           filepath.Clean(mod1.Path + "/" + h.pattern),
@@ -146,6 +154,15 @@ func (s *Service) HandleModule(pattern string, mod *Module) {
 	}
 
 	for _, r := range mod.routes {
+		//
+		if strings.Contains(r.pattern, "/{controller}/{action}") {
+			s.regHandler(&regHandler{
+				pattern:        filepath.Clean(mod1.Path + "/" + r.pattern),
+				handlerModuler: modr,
+			})
+			continue
+		}
+		//
 		ctrl, ok := r.params["controller"]
 		if !ok {
 			ctrl = "Index"

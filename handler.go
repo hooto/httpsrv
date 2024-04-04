@@ -24,6 +24,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/andybalholm/brotli"
@@ -36,6 +37,7 @@ type regHandler struct {
 
 	handlerFunc       func(w http.ResponseWriter, r *http.Request)
 	handlerController *handlerController
+	handlerModuler    *handlerModuler
 	handlerFileServer *handlerFileServer
 	// handlerContext    func(ctx *Context) error
 }
@@ -43,6 +45,11 @@ type regHandler struct {
 type handlerFileServer struct {
 	binFs    http.FileSystem
 	filepath string
+}
+
+type handlerModuler struct {
+	mu      sync.RWMutex
+	actions map[string]*handlerController
 }
 
 type rootHandler struct {
@@ -134,12 +141,23 @@ func (it *regHandler) handle(
 		return
 	}
 
+	if it.handlerModuler == nil && it.handlerController == nil {
+		http.NotFound(w, r)
+		return
+	}
+
 	var (
 		req  = newRequest(r)
 		resp = newResponse(w)
 		c    = newController(it.service, req, resp)
 		ae   = r.Header.Get("Accept-Encoding")
+
+		handlerController = it.handlerController
 	)
+
+	if handlerController == nil {
+		handlerController = it.handlerModuler.find(r)
+	}
 
 	req.Time = reqTime
 	req.urlPath = urlPath
@@ -149,15 +167,15 @@ func (it *regHandler) handle(
 		filter(c)
 	}
 
-	if it.handlerController != nil {
+	if handlerController != nil {
 
 		var (
-			appControllerPtr  = reflect.New(it.handlerController.ctrlType)
+			appControllerPtr  = reflect.New(handlerController.ctrlType)
 			appControllerInst = appControllerPtr.Elem()
 			cValue            = reflect.ValueOf(c)
 		)
 
-		for _, index := range it.handlerController.ctrlIndexes {
+		for _, index := range handlerController.ctrlIndexes {
 			appControllerInst.FieldByIndex(index).Set(cValue)
 		}
 
@@ -174,17 +192,17 @@ func (it *regHandler) handle(
 		}
 
 		//
-		execController = reflect.ValueOf(appController).MethodByName(it.handlerController.ActionName + "Action")
-		if execController.Kind() == reflect.Invalid && it.handlerController.ActionName != "Index" {
+		execController = reflect.ValueOf(appController).MethodByName(handlerController.ActionName + "Action")
+		if execController.Kind() == reflect.Invalid && handlerController.ActionName != "Index" {
 			execController = reflect.ValueOf(appController).MethodByName("IndexAction")
 			if execController.Kind() == reflect.Invalid {
 				return
 			}
 		}
 
-		c.modPath = it.handlerController.ModPath
-		c.Name = it.handlerController.Name
-		c.ActionName = it.handlerController.ActionName
+		c.modPath = handlerController.ModPath
+		c.Name = handlerController.Name
+		c.ActionName = handlerController.ActionName
 
 		//
 		if execController.Type().IsVariadic() {
@@ -233,6 +251,20 @@ func (it *regHandler) handle(
 	} else if resp.Status > 0 {
 		w.WriteHeader(resp.Status)
 	}
+}
+
+func (it *handlerModuler) find(r *http.Request) *handlerController {
+	var (
+		ctrl   = r.PathValue("controller")
+		action = r.PathValue("action")
+		k      = controllerActionPattern(ctrl, action)
+	)
+	it.mu.RLock()
+	defer it.mu.RUnlock()
+	if hc, ok := it.actions[k]; ok {
+		return hc
+	}
+	return nil
 }
 
 func handlerPathSlice(path string) (string, []string) {

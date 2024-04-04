@@ -117,6 +117,12 @@ func (it *rootRouter) find(r *http.Request) (*regHandler, string, string) {
 			return ctx.hits[i].patFieldN > ctx.hits[j].patFieldN
 		})
 
+		if false {
+			for i, hit := range ctx.hits {
+				println(i, hit.patFieldN, strings.Join(hit.rawFields, "/"))
+			}
+		}
+
 		if len(ctx.hits[0].patParams) > 0 {
 			for _, i := range ctx.hits[0].patParams {
 				r.SetPathValue(ctx.hits[0].patFields[i], patFields[i])
@@ -201,32 +207,38 @@ func (it *routeNode) add(index int, patFields []string, patParams []bool,
 	return node
 }
 
-func (it *routeNode) find(ctx *routeContext, netxFields []string) bool {
+func (it *routeNode) find(ctx *routeContext, nextFields []string) bool {
 
 	for _, n := range it.varNodes {
 
-		if len(netxFields) == 1 {
+		if len(nextFields) == 1 {
 			if n.handler != nil {
 				ctx.hits = append(ctx.hits, n)
 				return true
 			}
 		} else {
-			if n.find(ctx, netxFields[1:]) {
+			if n.find(ctx, nextFields[1:]) {
 				return true
 			}
+		}
+
+		if n.handler != nil && len(n.varNodes) == 0 && len(n.stdNodes) == 0 {
+			ctx.hits = append(ctx.hits, n)
 		}
 	}
 
 	if it.stdNodes != nil {
 
-		if n, ok := it.stdNodes[netxFields[0]]; ok {
+		if n, ok := it.stdNodes[nextFields[0]]; ok {
+
+			// println("std-node", nextFields[0])
 
 			if n.handler != nil {
 				ctx.hits = append(ctx.hits, n)
 			}
 
-			if len(netxFields) > 1 {
-				if n.find(ctx, netxFields[1:]) {
+			if len(nextFields) > 1 {
+				if n.find(ctx, nextFields[1:]) {
 					return true
 				}
 			} else if n.handler != nil {
@@ -234,7 +246,7 @@ func (it *routeNode) find(ctx *routeContext, netxFields []string) bool {
 			}
 		}
 
-		if false && netxFields[0] != "index" {
+		if false && nextFields[0] != "index" {
 
 			if n, ok := it.stdNodes["index"]; ok &&
 				n.handler.handlerController != nil {
@@ -243,8 +255,8 @@ func (it *routeNode) find(ctx *routeContext, netxFields []string) bool {
 					ctx.hits = append(ctx.hits, n)
 				}
 
-				if len(netxFields) > 1 {
-					if n.find(ctx, netxFields[1:]) {
+				if len(nextFields) > 1 {
+					if n.find(ctx, nextFields[1:]) {
 						return true
 					}
 				} else if n.handler != nil {
