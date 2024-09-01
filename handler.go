@@ -204,6 +204,8 @@ func (it *regHandler) handle(
 		c.Name = handlerController.Name
 		c.ActionName = handlerController.ActionName
 
+		c.Data["URL_MOD_PATH"] = it.service.Config.UrlBasePath + c.modPath
+
 		//
 		if execController.Type().IsVariadic() {
 			execController.CallSlice(genArgs)

@@ -17,6 +17,7 @@ package httpsrv
 import (
 	"bytes"
 	"encoding/json"
+	"hash/crc64"
 	"sync"
 )
 
@@ -51,4 +52,10 @@ func isUpper(v byte) bool {
 		return true
 	}
 	return false
+}
+
+var crc64ecma182 = crc64.MakeTable(crc64.ECMA)
+
+func crc64Checksum(b []byte) uint64 {
+	return crc64.Checksum(b, crc64ecma182)
 }

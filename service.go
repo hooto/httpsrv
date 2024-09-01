@@ -26,6 +26,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/hooto/httpsrv/internal/lru"
 )
 
 type Service struct {
@@ -69,6 +71,7 @@ func NewService() *Service {
 		TemplateLoader: &TemplateLoader{
 			templatePaths: map[string]string{},
 			templateSets:  map[string]*template.Template{},
+			templateCache: lru.New(128), // TODO
 		},
 	}
 }

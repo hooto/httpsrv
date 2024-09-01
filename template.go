@@ -24,6 +24,8 @@ import (
 	"path"
 	"strings"
 	"sync"
+
+	"github.com/hooto/httpsrv/internal/lru"
 )
 
 // This object handles loading and parsing of templates.
@@ -36,6 +38,8 @@ type TemplateLoader struct {
 
 	// This is the set of all templates under views
 	templateSets map[string]*template.Template
+
+	templateCache *lru.Cache
 }
 
 func (it *TemplateLoader) Clean(modUrlBase string) {
@@ -199,5 +203,32 @@ func (it *TemplateLoader) Render(wr io.Writer, modUrlBase, tplPath string, arg i
 			return fmt.Errorf("template %s/%s not found", modUrlBase, tplPath)
 		}
 	}
+	return tpl.Execute(wr, arg)
+}
+
+func (it *TemplateLoader) rawRender(wr io.Writer, txt string, arg interface{}) error {
+
+	defer func() {
+		if err := recover(); err != nil {
+			defaultLogger.Debugf("httpsrv: raw-render err %v", err)
+		}
+	}()
+
+	var (
+		hkey = crc64Checksum([]byte(txt))
+		tpl  *template.Template
+	)
+
+	if itpl, ok := it.templateCache.Get(hkey); !ok {
+		tpl, err := template.New("raw").Parse(txt)
+		if err != nil {
+			return err
+		}
+		tpl = tpl.Funcs(TemplateFuncs)
+		it.templateCache.Add(hkey, tpl)
+	} else {
+		tpl = itpl.(*template.Template)
+	}
+
 	return tpl.Execute(wr, arg)
 }

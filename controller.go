@@ -60,6 +60,27 @@ func newController(srv *Service, req *Request, resp *Response) *Controller {
 	}
 }
 
+func (c *Controller) RenderHTML(htm string) {
+	c.AutoRender = false
+
+	defer func() {
+		if err := recover(); err != nil {
+			// println(err)
+		}
+	}()
+
+	err := c.service.TemplateLoader.rawRender(c.Response, htm, c.Data)
+	if err != nil {
+		c.Response.Header().Set("Content-Type", "text/html; charset=utf-8")
+		c.Response.Out.WriteHeader(http.StatusBadRequest)
+		c.Response.Out.Write([]byte("400 Bad Request"))
+		c.service.logger.Debugf("tpl render fail %s", err.Error())
+	} else {
+		c.Response.Header().Set("Content-Type", "text/html; charset=utf-8")
+		c.Response.WriteHeader(http.StatusOK)
+	}
+}
+
 func (c *Controller) Render(args ...interface{}) {
 
 	c.AutoRender = false
