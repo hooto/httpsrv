@@ -25,7 +25,12 @@ import (
 var tplMut sync.RWMutex
 
 var TemplateFuncs = map[string]interface{}{
-	"eq": tfEqual,
+	// "eq": tfEqual,
+	// "ne": tfNotEqual,
+	// "lt": tfLessThan,
+	// "le": tfLessEqual,
+	// "gt": tfGreaterThan,
+	// "ge": tfGreaterEqual,
 	// Skips sanitation on the parameter.  Do not use with dynamic data.
 	"raw": func(text string) template.HTML {
 		return template.HTML(text)

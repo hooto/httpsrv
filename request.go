@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"path/filepath"
 	"sort"
@@ -58,6 +59,14 @@ func newRequest(r *http.Request) *Request {
 		acceptLanguage: resolveAcceptLanguage(r),
 		Locale:         "",
 		bodyRead:       false,
+	}
+
+	if req.ContentType == "application/x-www-form-urlencoded" &&
+		(r.Method == "POST" || r.Method == "PUT") {
+		if _, err := io.Copy(&req.bodyBuffer, req.Body); err == nil {
+			req.Body = ioutil.NopCloser(bytes.NewReader(req.bodyBuffer.Bytes()))
+			req.bodyRead = true
+		}
 	}
 
 	return req

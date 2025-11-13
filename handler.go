@@ -100,6 +100,46 @@ func (it *regHandler) handle(
 	urlPath, urlRoutePath string, reqTime time.Time,
 ) {
 
+	var (
+		req  = newRequest(r)
+		resp = newResponse(w)
+		ae   = r.Header.Get("Accept-Encoding")
+	)
+
+	if it.service.Config.CompressResponse && ae != "" {
+		if strings.Contains(ae, "gzip") {
+			resp.compWriter, ae = gzip.NewWriter(resp.buf), "gzip"
+		} else if strings.Contains(ae, "br") {
+			resp.compWriter, ae = brotli.NewWriterLevel(resp.buf, 5), "br"
+		}
+	}
+
+	defer func() {
+
+		if resp.compWriter != nil {
+			resp.compWriter.Flush()
+			resp.compWriter.Close()
+
+			if w.Header().Get("Content-Encoding") == "" && resp.buf.Len() > 0 {
+				if ae == "gzip" {
+					w.Header().Set("Content-Encoding", "gzip")
+				} else if ae == "br" {
+					w.Header().Set("Content-Encoding", "br")
+				}
+			}
+		}
+
+		if resp.buf != nil && resp.buf.Len() > 0 {
+			w.Header().Set("Content-Length", strconv.Itoa(resp.buf.Len()))
+			if resp.Status > 0 {
+				w.WriteHeader(resp.Status)
+			}
+			w.Write(resp.buf.Bytes())
+		} else if resp.Status > 0 {
+			w.WriteHeader(resp.Status)
+		}
+	}()
+
 	if it.handlerFileServer != nil {
 
 		if !strings.HasPrefix(urlPath, it.pattern) {
@@ -111,46 +151,38 @@ func (it *regHandler) handle(
 			if fp, err := it.handlerFileServer.binFs.Open(subPath); err == nil {
 				defer fp.Close()
 				if st, err := fp.Stat(); err == nil {
-					http.ServeContent(w, r, st.Name(), st.ModTime(), fp)
+					http.ServeContent(resp, r, st.Name(), st.ModTime(), fp)
 					return
 				}
 			}
-			http.NotFound(w, r)
+			http.NotFound(resp, r)
 			return
 		}
 
 		file := filepath.Clean(it.handlerFileServer.filepath + "/" + subPath)
 
 		finfo, err := os.Stat(file)
-		if err != nil {
-			http.NotFound(w, r)
+		if err != nil || finfo.IsDir() {
+			http.NotFound(resp, r)
 			return
 		}
 
-		if finfo.IsDir() {
-			http.NotFound(w, r)
-			return
-		}
-
-		http.ServeFile(w, r, file)
+		http.ServeFile(resp, r, file)
 		return
 	}
 
 	if it.handlerFunc != nil {
-		it.handlerFunc(w, r)
+		it.handlerFunc(resp, r)
 		return
 	}
 
 	if it.handlerModuler == nil && it.handlerController == nil {
-		http.NotFound(w, r)
+		http.NotFound(resp, r)
 		return
 	}
 
 	var (
-		req  = newRequest(r)
-		resp = newResponse(w)
-		c    = newController(it.service, req, resp)
-		ae   = r.Header.Get("Accept-Encoding")
+		c = newController(it.service, req, resp)
 
 		handlerController = it.handlerController
 	)
@@ -223,36 +255,6 @@ func (it *regHandler) handle(
 		c.Render()
 	}
 
-	if ae != "" && it.service.Config.CompressResponse {
-		if strings.Contains(ae, "gzip") {
-			resp.compWriter, ae = gzip.NewWriter(resp.buf), "gzip"
-		} else if strings.Contains(ae, "br") {
-			resp.compWriter, ae = brotli.NewWriterLevel(resp.buf, 5), "br"
-		}
-	}
-
-	if resp.compWriter != nil {
-		resp.compWriter.Flush()
-		resp.compWriter.Close()
-
-		if w.Header().Get("Content-Encoding") == "" && resp.buf.Len() > 0 {
-			if ae == "gzip" {
-				w.Header().Set("Content-Encoding", "gzip")
-			} else if ae == "br" {
-				w.Header().Set("Content-Encoding", "br")
-			}
-		}
-	}
-
-	if resp.buf != nil && resp.buf.Len() > 0 {
-		w.Header().Set("Content-Length", strconv.Itoa(resp.buf.Len()))
-		if resp.Status > 0 {
-			w.WriteHeader(resp.Status)
-		}
-		w.Write(resp.buf.Bytes())
-	} else if resp.Status > 0 {
-		w.WriteHeader(resp.Status)
-	}
 }
 
 func (it *handlerModuler) find(r *http.Request) *handlerController {
