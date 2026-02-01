@@ -1,8 +1,8 @@
-## Service 组件
+## Service Component
 
-Service 组件是 httpsrv 提供HTTP服务的最外层对象实例, 其它组件都直接或者间接的注册到 Service 以后，最后通过 Service.Start() 方法对外提供 HTTP 服务.
+The Service component is the outermost object instance that provides HTTP services in httpsrv. Other components are registered directly or indirectly to the Service, and finally HTTP services are provided to the outside through the Service.Start() method.
 
-> 提示: 由外至内 httpsrv 主要组件的逻辑层依次是: HTTP 请求 -> Service -> Module -> Controller -> Action
+> Hint: From outside to inside, the main component logical layers of httpsrv are: HTTP Request -> Service -> Module -> Controller -> Action
 
 ``` go
 type Service struct {
@@ -12,18 +12,17 @@ type Service struct {
 }
 ```
 
-说明
+Description
 
-| 项目 | 说明 |
+| Item | Description |
 |----|----|
-| Config | 基础配置组件, 定义 HTTP 服务启动时的依赖参数, [Config 详情](config.md) |
-| Filter | 以 HTTP Request/Response 整个执行生命周期内的过滤器序列配置, httpsrv 以此顺序执行如 Router, Params, Action 等核心逻辑. 这是一个抽象接口定义，可定制，但多数情况下无需配置，系统默认设置已经满足多数使用场景. 默认配置参考 [文件 filter.go](https://github.com/hooto/httpsrv/blob/master/filter.go)  |
-| TemplateLoader | 视图加载管理组件, 当开发 Web MVC 中的 V(View) 时会自动激活这个组件，具体可参考 [Template 详情](template.md) |
+| Config | Basic configuration component that defines dependency parameters when HTTP service starts. See [Config Details](config.md) |
+| Filter | Filter sequence configuration for the entire execution lifecycle of HTTP Request/Response. httpsrv executes core logic such as Router, Params, Action in this order. This is an abstract interface definition that can be customized, but in most cases does not need to be configured. The system default settings already meet most usage scenarios. For default configuration, refer to [file filter.go](https://github.com/hooto/httpsrv/blob/master/filter.go) |
+| TemplateLoader | View loading and management component. When developing V (View) in Web MVC, this component will be automatically activated. For details, refer to [Template Details](template.md) |
 
-## 快速使用 Service
+## Quick Use of Service
 
-httpsrv 默认创建了一个全局 Service 实例 `httpsrv.GlobalService`, 多数场景下直接使用它即可. 最简单的示例，只需要注册一个 module/controller 并设置 tcp 端口就可启用服务, 如:
-
+httpsrv creates a global Service instance `httpsrv.GlobalService` by default. In most scenarios, you can use it directly. The simplest example only needs to register a module/controller and set the TCP port to start the service, such as:
 
 ``` go
 package main
@@ -40,44 +39,43 @@ func (c Account) LoginAction() {
 	c.RenderString("hello world")
 }
 
-// 构建一个模块示例
+// Build a module example
 func NewUserModule() *httpsrv.Module {
 
-	// 初始化一个空的模块
+	// Initialize an empty module
 	mod := httpsrv.NewModule()
     
-	// 注册一个控制器到模块中
-	mod.ControllerRegister(new(Account))
+	// Register a controller to module
+	mod.RegisterController(new(Account))
 
 	return mod
 }
 
 func main() {
 
-	// 将这个模块注册到服务里 (挂载到 URL 路径为 /user 对外提供服务, 可配置)
+	// Register this module to service (mounted to URL path /user to provide services externally, configurable)
 	httpsrv.GlobalService.HandleModule("/user", NewUserModule())
 
-	// 设置服务端口
+	// Set service port
 	httpsrv.GlobalService.Config.HttpPort = 8080
 
-	// 启动服务
+	// Start service
 	httpsrv.GlobalService.Start()
 }
 ```
 
-编译并启动服务
+Compile and start service
 
 ``` shell
 go build -o demo-server main.go
 ./demo-server
 ```
 
-按照 `/{module-path}/{controller}/{action}` 的全局名称约定，以上服务通过 http://localhost:8080/user/account/login 访问.
+According to the global naming convention of `/{module-path}/{controller}/{action}`, the above service can be accessed via http://localhost:8080/user/account/login.
 
+## Multiple Services Coexist
 
-## 多 Service 并存
-
-在部分场景中，需要对外以不同端口提供多组服务实例. 比如: 80端口为前端业务(企业防火墙只开放 80 端口), 8080端口为API业务并只在内网开放, 可以如下实现:  
+In some scenarios, multiple sets of service instances need to be provided on different ports externally. For example: 80 port for frontend business (enterprise firewall only opens 80 port), 8080 port for API business and only opened internally. This can be achieved as follows:
 
 ``` go
 package main
@@ -94,12 +92,12 @@ func (c ApiDemo) ExampleAction() {
 	jsonStruct := struct {
 		Name string `json:"name"`
 	} {
-		Name: "robot"
+		Name: "robot",
 	}
 	c.RenderJson(jsonStruct)
 }
 
-// 构建API模块
+// Build API module
 func NewApiModule() *httpsrv.Module {
 	mod := httpsrv.NewModule()
 	mod.RegisterController(new(ApiDemo))
@@ -114,7 +112,7 @@ func (c Index) IndexAction() {
 	c.RenderString("hello world")
 }
 
-// 构建前端模块
+// Build frontend module
 func NewFrontendModule() *httpsrv.Module {
 	mod := httpsrv.NewModule()
 	mod.RegisterController(new(Index))
@@ -132,43 +130,40 @@ func main() {
 	serviceApi.HandleModule("/api/v1", NewApiModule())
 
 
-	// 启动前端服务
+	// Start frontend service
 	go serviceFrontend.Start()
 
-	// 启动后端服务
+	// Start backend service
 	serviceApi.Start()
 }
 ```
 
+## Service Main Interface Methods
 
-## Service 主要接口方法
+On the basis of `type Service struct` data definition, some dynamic interface methods are extended to customize configuration items.
 
-在 `type Service struct` 这个数据定义基础之上，扩展了部分动态接口方法用于定制配置项
-
-### 核心方法 ModuleRegister
+### Core Method ModuleRegister
 
 ``` go
-// 接口定义
+// Interface definition
 func (s *Service) HandlerRegister(baseuri string, h http.Handler)
 ```
 
-这是一个必需的方法，所有模块都需要注册到 Service 上才能提供对外服务, 具体示例可参考如上代码. 
+This is a required method. All modules need to be registered to the Service to provide services externally. For specific examples, please refer to the above code.
 
-需要特别说明 baseuri string 这个参数, 在多数企业应用中，基于工程和业务需求的考虑，都会有多个模块共存的场景 (即: 同域名下有多个业务系统)，不同模块在注册到 Service 上时，都需要指定这个模块在 URL 的挂载目录，baseuri 路径名一般和业务系统功能对应，比如 /user, /cms, /mail 等等.  
-
+It needs special explanation that the baseuri string parameter. In most enterprise applications, due to engineering and business requirements, there will be multiple modules coexisting scenarios (i.e., multiple business systems under the same domain). When different modules are registered to the Service, this module's mount directory in the URL needs to be specified. The baseuri path name generally corresponds to the business system function, such as /user, /cms, /mail, etc.
 
 ### HandlerRegister, HandlerFuncRegister
 
 ``` go
-// 接口定义 http.Handler
+// Interface definition http.Handler
 func (s *Service) HandlerRegister(baseuri string, h http.Handler)
 
-// 接口定义 http.HandlerFunc
+// Interface definition http.HandlerFunc
 func (s *Service) HandlerFuncRegister(baseuri string, h http.HandlerFunc)
 ```
 
-这两个接口用于向 Service 注册原生的 go/net/http 处理函数, 主要用于:
+These two interfaces are used to register native go/net/http handler functions to the Service, mainly used for:
 
-* RPC 类处理函数
-* WebSocket 类处理函数
-
+* RPC type handler functions
+* WebSocket type handler functions

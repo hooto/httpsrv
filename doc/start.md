@@ -1,24 +1,23 @@
-## 系统环境准备
+## System Environment Preparation
 
-httpsrv 是 Golang HTTP 框架, 需确保已经正常安装和配置 go 开发环境, 详情参考官方网站: 
+httpsrv is a Golang HTTP framework. Please ensure that the Go development environment is properly installed and configured. For details, please refer to the official website:
 
-* 官方原站 [https://golang.org](https://golang.org) 
-* 中文镜像 [https://golang.google.cn](https://golang.google.cn)
+* Official Website [https://golang.org](https://golang.org)
+* Chinese Mirror [https://golang.google.cn](https://golang.google.cn)
 
-> 注: 推荐在 Linux, Unix 或 MacOS 系统上开发和部署基于 httpsrv 的应用程序 (Windows OS 在企业应用中并不常见，所以没做兼容测试). 
+> Note: It is recommended to develop and deploy httpsrv-based applications on Linux, Unix, or macOS systems. Windows OS is not common in enterprise applications, so no compatibility testing has been done.
 
-
-安装，或更新 httpsrv:
+Install or update httpsrv:
 
 ``` shell
 go get -u github.com/hooto/httpsrv
 ```
 
-如上述步骤没有异常，开始一个简单的示例
+If the above steps are successful, let's start with a simple example.
 
-## 开始一个 "Hello World" 示例
+## Start a "Hello World" Example
 
-创建一个文件 main.go 并编辑:
+Create a file main.go and edit it:
 
 ``` go
 package main
@@ -27,7 +26,7 @@ import (
 	"github.com/hooto/httpsrv"
 )
 
-// 新建一个 Controller
+// Create a new Controller
 type Hello struct {
 	*httpsrv.Controller
 }
@@ -36,100 +35,99 @@ func (c Hello) WorldAction() {
 	c.RenderString("hello world")
 }
 
-// 构建一个模块示例
+// Build a module example
 func NewModule() httpsrv.Module {
 
-	// 初始化一个空的模块
+	// Initialize an empty module
 	module := httpsrv.NewModule("demo")
     
-	// 注册一个控制器到模块中
+	// Register a controller to the module
 	module.ControllerRegister(new(Hello))
 
 	return module
 }
 
-// 全局入口
+// Global entry point
 func main() {
 
-	// 将模块注册到服务(Service)容器中
+	// Register the module to the service container
 	httpsrv.GlobalService.ModuleRegister("/", NewModule())
 
-	// 设置服务端口
+	// Set service port
 	httpsrv.GlobalService.Config.HttpPort = 8080
 
-	// 启动服务
+	// Start service
 	httpsrv.GlobalService.Start()
 }
 ```
 
-运行这个示例:
+Run this example:
+
 ``` shell
 go run main.go
 ```
 
-通过 http://localhost:8080/hello/world/ 便可访问上面新建的服务
+You can access the newly created service via http://localhost:8080/hello/world/
 
+## Start a Formal Project
 
-## 开始一个正式的项目
+The "hello world" above is just a simple example. Actual projects will be more complex:
 
-上述的 "hello world" 只是一个简单示例，实际项目会更复杂:
+### Recommended Directory Structure
 
-### 目录结构建议:
-
-作为面向模块编程的 HTTP 框架, 建议为每个模块(Module)业务逻辑新建独立的文件目录来组织管理代码, 使项目整体结构清晰, 管理便利, 如示例.
+As an HTTP framework oriented towards modular programming, it is recommended to create independent file directories for each module's business logic to organize and manage code, making the overall project structure clear and easy to manage, as shown in the example.
 
 ``` shell
 ├─ bin/
-│  └─ cmd-server // 编译后的可执行文件 go build -o bin/cmd-server cmd/server/main.go
+│  └─ cmd-server // Compiled executable file: go build -o bin/cmd-server cmd/server/main.go
 ├─ etc/
-│  └─ config.ini,json,yaml, ... // 配置文件存放
+│  └─ config.ini,json,yaml, ... // Configuration file storage
 ├─ config/
-│  └─ config.go // 配置文件解析
+│  └─ config.go // Configuration file parsing
 ├─ cmd/
 │  └─ server/
-│     └─ main.go // Server 服务入口
+│     └─ main.go // Server service entry point
 ├─ data/
-│  └─ data.go // 数据库, 存储访问 (MySQL, PostgreSQL, Redis, ...)
-├─ websrv/ // 模块
-│  ├─ api-v1/ // 模块 api-v1
+│  └─ data.go // Database, storage access (MySQL, PostgreSQL, Redis, ...)
+├─ websrv/ // Modules
+│  ├─ api-v1/ // Module api-v1
 │  │  ├─ setup.go
 │  │  └─ controller-a.go
-│  └─ frontend/ // 模块 frontend
+│  └─ frontend/ // Module frontend
 │     ├─ setup.go
 │     ├─ controller-a.go
-│     └─ views/ // HTML视图模版文件
+│     └─ views/ // HTML view template files
 │        └─ controller-a/
 │           ├─ action-a.tpl
 │           └─ action-b.tpl
-├─ webui/ // 静态文件模块
-│  └─ a/ // 静态文件模块 a
+├─ webui/ // Static file modules
+│  └─ a/ // Static file module a
 │     ├─ img/*
 │     ├─ css/*
 │     └─ js/*
 └─ var/
 ```
 
-> 注: golang 有特定的 import 路径规则, 需确保目录正确
+> Note: Golang has specific import path rules, so please ensure the directory structure is correct.
 
-
-以上目录结构完整代码示例可参考 [https://github.com/hooto/httpsrv-demo](https://github.com/hooto/httpsrv-demo), 可以git导出并运行:
+For a complete code example with the above directory structure, please refer to [https://github.com/hooto/httpsrv-demo](https://github.com/hooto/httpsrv-demo). You can clone it with git and run it:
 
 ``` shell
-# 使用 git 导出示例代码
+# Use git to clone the example code
 git clone git@github.com:hooto/httpsrv-demo.git
 cd httpsrv-demo
 
-# 运行示例
+# Run the example
 ./develop-run.sh 
 I 2019-07-13 17:21:37.643316 config.go:29] project prefix path /opt/gopath/src/github.com/hooto/httpsrv-demo
 I 2019-07-13 17:21:37.644743 service.go:240] lessgo/httpsrv: listening on tcp/0.0.0.0:8080
 ```
 
-通过 http://localhost:8080/ 便可访问上面示例中的服务, 你如果开始一个全新项目，此示例代码可作为为模版使用。
+You can access the service in the above example via http://localhost:8080/. If you are starting a brand new project, this example code can be used as a template.
 
-### 业务逻辑依赖库
+### Business Logic Dependencies
 
-httpsrv 是纯粹精简的 http 框架，只封装 http request/response 有关的业务常用接口，对于 Web 开发中涉及的 Model, ORM, Cache 等业务中间件没有内置提供，而是根据需求引用第三方库.
+httpsrv is a purely concise HTTP framework that only encapsulates business common interfaces related to HTTP request/response. For business middleware such as Model, ORM, Cache, etc. involved in Web development, it does not provide built-in support, but relies on third-party libraries as needed.
 
 * Go client for MySQL [https://github.com/lynkdb/mysqlgo](https://github.com/lynkdb/mysqlgo)
 * Go client for PostgreSQL [https://github.com/lynkdb/pgsqlgo](https://github.com/lynkdb/pgsqlgo)
@@ -142,8 +140,6 @@ httpsrv 是纯粹精简的 http 框架，只封装 http request/response 有关�
 * i18n library for golang [https://github.com/hooto/hlang4g](https://github.com/hooto/hlang4g)
 * Captcha library for Golang [https://github.com/hooto/hcaptcha4g](https://github.com/hooto/hcaptcha4g)
 
+Most of the recommended dependencies above are purely concise. The Go programming language ecosystem contains a large number of excellent projects. Here is a recommended project navigation list for reference:
 
-以上推荐的依赖库大多纯粹精简, Go 编程语言生态系统里包含大量优秀项目, 推荐一个项目导航清单供参考: 
-
-* Go 第三方库导航 [https://github.com/avelino/awesome-go](https://github.com/avelino/awesome-go)
-
+* Go Third-party Libraries Directory [https://github.com/avelino/awesome-go](https://github.com/avelino/awesome-go)

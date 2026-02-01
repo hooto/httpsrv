@@ -1,20 +1,24 @@
-# 介绍
-* [简介](README.md)
-* [快速开始](start.md)
+# 语言 / Language
+* [中文文档](zh-CN/README.md) | [中文目录](zh-CN/SUMMARY.md)
+* [English Documentation](README.md)
 
-# 主要组件
+# Introduction
+* [Introduction](README.md)
+* [Getting Started](start.md)
+
+# Core Components
 * [Service](service.md)
 * [Config](config.md)
 * [Module](module.md)
 * [Controller](controller.md)
+* [Router](router.md)
 * [Template](template.md)
 
-# 扩展组件
-* [log 日志记录](ext/log.md)
-* [Model, 关系数据库](ext/data-rdb.md)
-* [Cache, Key-Value 数据库](ext/data-kv.md)
-* [命令行传参](ext/flag.md)
+# Extension Components
+* [log](ext/log.md)
+* [Model, Relational Database](ext/data-rdb.md)
+* [Cache, Key-Value Database](ext/data-kv.md)
+* [Command Line Arguments](ext/flag.md)
 
-# QA
-* [常见问题](qa.md)
-
+# FAQ
+* [Common Questions](qa.md)

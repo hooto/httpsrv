@@ -1,14 +1,14 @@
-# FAQ (Frequently Asked Questions)
+# QA 问答
 
-## Basic Questions
+## 基础问题
 
-#### How to support SSL (https)
+#### 如何支持 SSL (https)
 
-**Private Server**: SSL certificate management can be implemented through frontend load balancers like Nginx, which is more efficient in terms of performance.
+**私有服务器**：管理 SSL 证书可以通过前端 Nginx 等负载均衡实现，这种方式性能上更高效。
 
-**Cloud Service Providers**: Most cloud service providers' load balancing services have built-in SSL certificate management.
+**云服务商**：多数云服务商提供的负载均衡服务内置了 SSL 证书管理。
 
-Example Nginx configuration:
+示例 Nginx 配置：
 
 ```nginx
 server {
@@ -28,11 +28,11 @@ server {
 }
 ```
 
-#### How to support data compression and HTTP/2.0
+#### 如何支持数据压缩、HTTP/2.0
 
-Implement through frontend load balancers like Nginx. This approach is definitely more efficient than built-in httpsrv implementation, also conforms to operational management convenience. More importantly, it maintains httpsrv's positioning as purely concise.
+通过前端 nginx 等负载均衡实现，这种方式比 httpsrv 内置实现肯定更高效，同时也符合运维管理的便利性；更重要的是保持 httpsrv 定位的纯粹精简。
 
-Example of Nginx enabling gzip compression:
+Nginx 开启 gzip 压缩示例：
 
 ```nginx
 http {
@@ -45,30 +45,30 @@ http {
 }
 ```
 
-#### How to get client real IP
+#### 如何获取客户端真实 IP
 
-When using reverse proxies like Nginx, you need to get the real IP from HTTP headers:
+当使用 Nginx 等反向代理时，需要从 HTTP 头中获取真实 IP：
 
 ```go
 func (c BaseController) GetClientIP() string {
-	// Check X-Real-IP header
+	// 检查 X-Real-IP 头
 	if ip := c.Request.Header.Get("X-Real-IP"); ip != "" {
 		return ip
 	}
-	// Check X-Forwarded-For header
+	// 检查 X-Forwarded-For 头
 	if ip := c.Request.Header.Get("X-Forwarded-For"); ip != "" {
 		return ip
 	}
-	// Default to RemoteAddr
+	// 默认使用 RemoteAddr
 	return c.Request.RemoteAddr
 }
 ```
 
-## Development Questions
+## 开发问题
 
-#### How to handle Cross-Origin Resource Sharing (CORS)
+#### 如何处理跨域请求 (CORS)
 
-httpsrv doesn't have built-in CORS support. You can implement it through Filter:
+httpsrv 没有内置 CORS 支持，可以通过 Filter 实现：
 
 ```go
 package main
@@ -78,37 +78,37 @@ import (
 )
 
 func CorsFilter(c *httpsrv.Controller, fc []httpsrv.Filter) {
-	// Set CORS headers
+	// 设置 CORS 头
 	c.Response.Out.Header().Set("Access-Control-Allow-Origin", "*")
 	c.Response.Out.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 	c.Response.Out.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 	c.Response.Out.Header().Set("Access-Control-Max-Age", "86400")
 	
-	// Handle OPTIONS preflight request
+	// 处理 OPTIONS 预检请求
 	if c.Request.Method == "OPTIONS" {
 		c.Response.Out.WriteHeader(200)
 		return
 	}
 	
-	// Continue executing subsequent Filters
+	// 继续执行后续 Filter
 	fc[0](c, fc[1:])
 }
 
 func main() {
-	// Register CORS Filter
+	// 注册 CORS Filter
 	httpsrv.GlobalService.Filters = []httpsrv.Filter{
 		CorsFilter,
 	}
 	
-	// Register module
+	// 注册模块
 	httpsrv.GlobalService.HandleModule("/", NewModule())
 	httpsrv.GlobalService.Start()
 }
 ```
 
-#### How to implement file upload
+#### 如何实现文件上传
 
-httpsrv supports standard multipart form data upload:
+httpsrv 支持标准的多部分表单数据上传：
 
 ```go
 type FileUpload struct {
@@ -116,22 +116,22 @@ type FileUpload struct {
 }
 
 func (c FileUpload) UploadAction() {
-	// Parse form
+	// 解析表单
 	if err := c.Request.ParseMultipartForm(32 << 20); err != nil {
-		c.RenderError(400, "Form parsing failed")
+		c.RenderError(400, "解析表单失败")
 		return
 	}
 	
 	file, header, err := c.Request.FormFile("file")
 	if err != nil {
-		c.RenderError(400, "Failed to get file")
+		c.RenderError(400, "获取文件失败")
 		return
 	}
 	defer file.Close()
 	
-	// Save file
-	// Here uses example logic, actual project should save to specified directory
-	// File information can be obtained through header
+	// 保存文件
+	// 这里使用示例逻辑，实际项目中应该保存到指定目录
+	// 文件信息可以通过 header 获取
 	filename := header.Filename
 	filesize := header.Size
 	contentType := header.Header.Get("Content-Type")
@@ -145,18 +145,18 @@ func (c FileUpload) UploadAction() {
 }
 ```
 
-Frontend HTML form:
+前端 HTML 表单：
 
 ```html
 <form action="/file-upload/upload" method="POST" enctype="multipart/form-data">
     <input type="file" name="file" />
-    <button type="submit">Upload</button>
+    <button type="submit">上传</button>
 </form>
 ```
 
-#### How to handle Session
+#### 如何处理 Session
 
-httpsrv has built-in Session support:
+httpsrv 内置了 Session 支持：
 
 ```go
 type Auth struct {
@@ -167,28 +167,28 @@ func (c Auth) LoginAction() {
 	username := c.Params.Value("username")
 	password := c.Params.Value("password")
 	
-	// Verify username and password
+	// 验证用户名密码
 	if username == "admin" && password == "password" {
-		// Set Session
+		// 设置 Session
 		c.Session.Set("user_id", "12345")
 		c.Session.Set("username", username)
 		
 		c.RenderJson(map[string]string{
 			"status": "success",
-			"message": "Login successful",
+			"message": "登录成功",
 		})
 	} else {
-		c.RenderError(401, "Invalid username or password")
+		c.RenderError(401, "用户名或密码错误")
 	}
 }
 
 func (c Auth) ProfileAction() {
-	// Get Session
+	// 获取 Session
 	userId := c.Session.Get("user_id")
 	username := c.Session.Get("username")
 	
 	if userId == "" {
-		c.RenderError(401, "Not logged in")
+		c.RenderError(401, "未登录")
 		return
 	}
 	
@@ -199,19 +199,19 @@ func (c Auth) ProfileAction() {
 }
 
 func (c Auth) LogoutAction() {
-	// Clear Session
+	// 清除 Session
 	c.Session.Clear()
 	
 	c.RenderJson(map[string]string{
 		"status": "success",
-		"message": "Logout successful",
+		"message": "退出成功",
 	})
 }
 ```
 
-#### How to implement i18n internationalization
+#### 如何实现 i18n 国际化
 
-httpsrv supports multiple languages, can be implemented by setting Locale:
+httpsrv 支持多语言，可以通过设置 Locale 实现：
 
 ```go
 type I18nDemo struct {
@@ -219,8 +219,8 @@ type I18nDemo struct {
 }
 
 func (c I18nDemo) IndexAction() {
-	// Get language setting from request
-	// Can get from URL parameters, Cookie or HTTP headers
+	// 从请求中获取语言设置
+	// 可以从 URL 参数、Cookie 或 HTTP 头中获取
 	lang := c.Params.Value("lang")
 	if lang == "" {
 		lang = c.Request.Header.Get("Accept-Language")
@@ -245,9 +245,9 @@ func (c I18nDemo) IndexAction() {
 }
 ```
 
-#### How to implement API versioning
+#### 如何实现 API 版本控制
 
-It's recommended to implement versioning through Module paths:
+推荐通过 Module 路径实现版本控制：
 
 ```go
 func main() {
@@ -260,14 +260,14 @@ func main() {
 	httpsrv.GlobalService.Start()
 }
 
-// v1 module
+// v1 模块
 func NewApiV1Module() *httpsrv.Module {
 	mod := httpsrv.NewModule()
 	mod.RegisterController(new(ApiV1Controller))
 	return mod
 }
 
-// v2 module
+// v2 模块
 func NewApiV2Module() *httpsrv.Module {
 	mod := httpsrv.NewModule()
 	mod.RegisterController(new(ApiV2Controller))
@@ -275,15 +275,15 @@ func NewApiV2Module() *httpsrv.Module {
 }
 ```
 
-Access paths:
+访问路径：
 - v1 API: `/api/v1/controller/action`
 - v2 API: `/api/v2/controller/action`
 
-## Deployment Questions
+## 部署问题
 
-#### How to configure graceful shutdown
+#### 如何配置优雅关闭
 
-Use signal handling to implement graceful shutdown:
+使用信号处理实现优雅关闭：
 
 ```go
 package main
@@ -296,27 +296,27 @@ import (
 )
 
 func main() {
-	// Start service
+	// 启动服务
 	go func() {
 		httpsrv.GlobalService.Start()
 	}()
 	
-	// Wait for interrupt signal
+	// 等待中断信号
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 	
-	// Execute cleanup operations
-	// Close database connections
-	// Save cache, etc.
+	// 执行清理操作
+	// 关闭数据库连接
+	// 保存缓存等
 	
-	// httpsrv will handle shutdown automatically
+	// httpsrv 会自动处理关闭
 }
 ```
 
-#### How to configure production environment configuration file
+#### 如何配置生产环境配置文件
 
-httpsrv supports multiple configuration file formats, JSON or YAML is recommended:
+httpsrv 支持多种配置文件格式，推荐使用 JSON 或 YAML：
 
 ```go
 package main
@@ -362,15 +362,15 @@ func main() {
 	
 	httpsrv.GlobalService.Config.HttpPort = uint16(config.HttpPort)
 	
-	// Use other configuration items to connect to database, Redis, etc.
+	// 使用其他配置项连接数据库、Redis 等
 	
 	httpsrv.GlobalService.Start()
 }
 ```
 
-#### How to implement health check endpoint
+#### 如何实现健康检查端点
 
-Create a dedicated health check module:
+创建专门的健康检查模块：
 
 ```go
 type HealthCheck struct {
@@ -378,10 +378,10 @@ type HealthCheck struct {
 }
 
 func (c HealthCheck) IndexAction() {
-	// Check database connection
+	// 检查数据库连接
 	dbOK := checkDatabase()
 	
-	// Check Redis connection
+	// 检查 Redis 连接
 	redisOK := checkRedis()
 	
 	status := "ok"
@@ -404,33 +404,33 @@ func NewHealthCheckModule() *httpsrv.Module {
 }
 
 func main() {
-	// Register health check module
+	// 注册健康检查模块
 	httpsrv.GlobalService.HandleModule("/health", NewHealthCheckModule())
 	
-	// Register other modules
+	// 注册其他模块
 	httpsrv.GlobalService.HandleModule("/", NewMainModule())
 	
 	httpsrv.GlobalService.Start()
 }
 ```
 
-## Performance Questions
+## 性能问题
 
-#### How to optimize static file serving
+#### 如何优化静态文件服务
 
-It's recommended to use dedicated static file servers:
+建议使用专门的静态文件服务器：
 
 ```go
 func main() {
-	// Use CDN or dedicated static file service
-	// httpsrv only handles dynamic content
+	// 使用 CDN 或专门的静态文件服务
+	// httpsrv 只负责动态内容
 	
 	httpsrv.GlobalService.HandleModule("/api", NewApiModule())
 	httpsrv.GlobalService.Start()
 }
 ```
 
-Or use Nginx to serve static files:
+或者使用 Nginx 提供静态文件：
 
 ```nginx
 server {
@@ -446,9 +446,9 @@ server {
 }
 ```
 
-#### How to implement caching
+#### 如何实现缓存
 
-httpsrv doesn't have built-in caching. Redis or in-memory cache is recommended:
+httpsrv 没有内置缓存，推荐使用 Redis 或内存缓存：
 
 ```go
 import "github.com/lynkdb/redisgo"
@@ -456,7 +456,7 @@ import "github.com/lynkdb/redisgo"
 var redisClient *redisgo.RedisClient
 
 func main() {
-	// Initialize Redis client
+	// 初始化 Redis 客户端
 	redisClient = redisgo.NewClient(&redisgo.Config{
 		Addr: "localhost:6379",
 	})
@@ -471,7 +471,7 @@ type CacheDemo struct {
 func (c CacheDemo) GetDataAction() {
 	key := "data_key"
 	
-	// Try to get from cache
+	// 尝试从缓存获取
 	data, err := redisClient.Get(key).Result()
 	if err == nil && data != "" {
 		c.Response.Out.Header().Set("X-Cache", "HIT")
@@ -479,10 +479,10 @@ func (c CacheDemo) GetDataAction() {
 		return
 	}
 	
-	// Cache miss, get from database
+	// 缓存未命中，从数据库获取
 	dbData := fetchDataFromDB()
 	
-	// Set cache
+	// 设置缓存
 	redisClient.Set(key, dbData, 5*time.Minute)
 	
 	c.Response.Out.Header().Set("X-Cache", "MISS")
@@ -490,82 +490,82 @@ func (c CacheDemo) GetDataAction() {
 }
 ```
 
-## Common Errors
+## 常见错误
 
-#### Action method not recognized by routing
+#### Action 方法没有被路由识别
 
-Make sure Action method ends with `Action()`:
+确保 Action 方法以 `Action()` 结尾：
 
 ```go
-// ❌ Wrong
+// ❌ 错误
 func (c User) Login() {
 	// ...
 }
 
-// ✅ Correct
+// ✅ 正确
 func (c User) LoginAction() {
 	// ...
 }
 ```
 
-#### Static file 404 error
+#### 静态文件 404 错误
 
-Check if static file path configuration is correct:
+检查静态文件路径配置是否正确：
 
 ```go
 func NewModule() *httpsrv.Module {
 	mod := httpsrv.NewModule()
 	
-	// Make sure local file path exists
+	// 确保本地文件路径存在
 	mod.RegisterFileServer("/assets", "./static", nil)
 	
 	return mod
 }
 
-// Access URL: /assets/css/style.css
-// Corresponds to local file: ./static/css/style.css
+// 访问 URL: /assets/css/style.css
+// 对应本地文件: ./static/css/style.css
 ```
 
-#### Template file not found
+#### 模版文件找不到
 
-Check if template path is set correctly:
+检查模版路径设置是否正确：
 
 ```go
 func NewModule() *httpsrv.Module {
 	mod := httpsrv.NewModule("ui")
 	
-	// Make sure template path is set correctly
+	// 确保模版路径设置正确
 	mod.SetTemplatePath("./views/ui")
 	
 	return mod
 }
 
-// If Controller is User and Action is Index
-// System will look for: ./views/ui/user/index.tpl
+// 如果 Controller 是 User，Action 是 Index
+// 系统会查找: ./views/ui/user/index.tpl
 ```
 
-## Use Cases
+## 应用案例
 
-#### Are there use cases
+#### 是否有应用案例
 
-httpsrv as a personal project has been applied to certain industry software since 2013:
+httpsrv 作为个人项目最早从 2013 年开始应用于某些行业软件中：
 
-* [SysInner.com](https://www.sysinner.com/) uses httpsrv to implement all API and Web modules
-* Provides API implementation in a certain hundred-billion-level advertising system, stable and efficient in handling data collection and index queries
-* Provides API implementation in a certain PB-level object storage service, with stable and reliable stability and memory usage in high-traffic IO read/write scenarios
-* Provides API implementations including user systems, message systems, interaction systems, etc., in multiple satellite TV gala live interaction events, running efficiently without exceptions in billions of PV and millions of UV scenarios, with comprehensive response time within 50 milliseconds (Environment note: 60 interface server 2-core cloud hosts, 6 database 4-core high-speed SSD cloud hosts, cluster load peak less than 5%, traffic implemented through cloud service provider load balancer export)
+* [SysInner.com](https://www.sysinner.com/) 使用 httpsrv 实现所有 API 和 Web 模块
+* 在某千亿级广告系统中提供 API 实现，稳定高效处理数据收集和索引查询
+* 在某PB级对象存储服务中提供 API 实现，大流量IO读写场景下的稳定性和内存使用均稳定可靠
+* 在多个卫视晚会线上互动活动中提供包括用户系统，消息系统，互动系统等 API 实现，在亿级PV，数百万UV 场景中高效运行无异常，综合响应时间 50 毫秒以内（环境备注：60台接口服务器2核云主机，6台数据库4核高速SSD云主机，集群负载峰值小于 5%，流量通过云服务商负载均衡出口实现）
 
-## Other Questions
+## 其他问题
 
-#### Still haven't solved the problem?
+#### 没有解决问题？
 
-If the above information doesn't help, you can send the problem to evorui at gmail dot com.
+如果上述信息没有帮助，可将问题发邮件到 evorui at gmail dot com。
 
-#### How to contribute code
+#### 如何贡献代码
 
-Pull Requests or Bug reports are welcome, please visit: https://github.com/hooto/httpsrv
+欢迎提交 Pull Request 或报告 Bug，请访问：https://github.com/hooto/httpsrv
 
-#### How to get the latest updates
+#### 如何获取最新更新
 
 ```bash
 go get -u github.com/hooto/httpsrv

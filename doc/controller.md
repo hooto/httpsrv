@@ -1,6 +1,6 @@
-## Controller 组件
+## Controller Component
 
-Controller 是 Web MVC 中的 C, 它包含 http 逻辑最主要的两个对象 Request 和 Response, 所有新建控制器都需继承 httpsrv.Controller, 如:
+Controller is the C in Web MVC. It includes the two most important objects for HTTP logic: Request and Response. All newly created controllers need to inherit from httpsrv.Controller, such as:
 
 ``` go
 type User struct {
@@ -16,7 +16,7 @@ func (c User) RegisterAction() {
 }
 ```
 
-httpsrv.Controller 数据定义如下:
+httpsrv.Controller data definition is as follows:
 
 ``` go
 type Controller struct {
@@ -31,30 +31,29 @@ type Controller struct {
 }
 ```
 
-注:
+Note:
 
-* httpsrv 内核根据 URL/router 规则匹配 Module-Path/Controller/Action 并运行
-* 生命周期是以 HTTP Request/Response 为单位创建和销毁，各个请求之间完全隔离并线程安全, *Action() 方法引用 Controller 内置变量时其对应值只在本地请求中有效. 
+* httpsrv kernel matches Module-Path/Controller/Action based on URL/router rules and runs
+* Lifecycle is created and destroyed per HTTP Request/Response unit, completely isolated between different requests and thread-safe. When *Action() method references Controller built-in variables, its corresponding value is only valid in local request.
 
-说明
+Description
 
-| 项目 | 说明 |
+| Item | Description |
 |----|----|
-| Name | 当前请求的控制器名 |
-| ActionName | 当前请求的Action名 |
-| Request | 当前请求时的 Request 对象实例 | 
-| Response | 当前请求时的 Response 对象实例 | 
-| Params | 基于 Request 封装的，获取请求参数的快捷对象 | 
-| Session | 用于保存 Session 信息到浏览器，或者取得 Session 信息的对象实例 | 
-| AutoRender | 系统默认会查找 View Template 模版文件并向 Response 对象输出返回数据，设置为 false 可以关闭此功能 | 
-| Data | 用于向 View Template 注入模版内需要的结构化数据 |
+| Name | Current request's controller name |
+| ActionName | Current request's action name |
+| Request | Request object instance when current request occurs | 
+| Response | Response object instance when current request occurs | 
+| Params | Shortcut object to get request parameters based on Request encapsulation | 
+| Session | Object instance to save Session information to browser or obtain Session information | 
+| AutoRender | By default, system will search for View Template template file and output return data to Response object. Setting to false can disable this feature | 
+| Data | Structured data to inject into View Template |
 
-## Controller 内置方法
+## Controller Built-in Methods
 
+### Request Object Instance
 
-### Request 对象实例
-
-httpsrv.Request 对象基于 go/net/http.Request, 并提供了部分扩展字段和功能,定义如下:
+httpsrv.Request object is based on go/net/http.Request and provides some extended fields and functions, defined as follows:
 
 ``` go
 type Request struct {
@@ -65,18 +64,17 @@ type Request struct {
 }
 ```
 
-| 项目 | 说明 |
+| Item | Description |
 |----|----|
-| Time | 当前请求开始时间 |
-| ContentType | 当前请求的http/header `Content-Type` 值 |
-| Locale | 当启用 i18n 功能是, 当前值为 http 客户端指定的语言包名 |
+| Time | Current request start time |
+| ContentType | Current request's http/header `Content-Type` value |
+| Locale | When i18n function is enabled, current value is language package name specified by http client |
 
-
-#### Request 对象实例所扩展的方法
+#### Extended Methods of Request Object Instance
 
 #### RawBody() []byte
 
-客户端 POST/PUT 原始 body 数据
+Client POST/PUT raw body data
 
 ``` go
 func (c File) UploadAction() {
@@ -86,7 +84,7 @@ func (c File) UploadAction() {
 
 #### JsonDecode(obj interface{}) error
 
-客户端 POST JsonObject 场景中反序列化接口
+Deserialization interface for client POST JsonObject scenarios
 
 ``` go
 func (c User) LoginAction() {
@@ -99,11 +97,11 @@ func (c User) LoginAction() {
 }
 ```
 
-注: httpsrv.Controller 基于 Request 封装了部分快捷接口，如 c.Params 等，详细请参考后续说明.
+Note: httpsrv.Controller encapsulates some shortcut interfaces based on Request, such as c.Params, etc. For details, please refer to subsequent instructions.
 
-### Response 对象实例
+### Response Object Instance
 
-httpsrv.Response 对象基于 go/net/http.ResponseWriter, 并提供了部分扩展字段和功能,定义如下:
+httpsrv.Response object is based on go/net/http.ResponseWriter and provides some extended fields and functions, defined as follows:
 
 ``` go
 type Response struct {
@@ -112,16 +110,16 @@ type Response struct {
 }
 ```
 
-| 项目 | 说明 |
+| Item | Description |
 |----|----|
-| Status | 返回 Response 内容时的 HTTP 的标准状态码, 如 200, 404, .. |
-| Out | 原始 IO 接口，返回 Response 内容时的原始数据写接口 |
+| Status | HTTP standard status code when returning Response content, such as 200, 404, ... |
+| Out | Original IO interface, original data write interface when returning Response content |
 
-注: httpsrv.Controller 基于 Response 封装了部分快捷接口，如 c.Render(), c.RenderJson() 等，详细请参考后续说明.
+Note: httpsrv.Controller encapsulates some shortcut interfaces based on Response, such as c.Render(), c.RenderJson(), etc. For details, please refer to subsequent instructions.
 
-### Params 对象
+### Params Object
 
-可便捷获取 GET URL 中的请求参数，或者 POST, PUT 通过 ContentType == "application/x-www-form-urlencoded" 方式请求的参数，如:
+Can conveniently get request parameters in GET URL, or parameters requested via POST, PUT with ContentType == "application/x-www-form-urlencoded", such as:
 
 ``` go
 func (c User) EntryAction() {
@@ -133,15 +131,15 @@ func (c User) EntryAction() {
 
 ### Render(args ...interface{})
 
-Render() 渲染模版视图的HTML数据并写入Response对象，传入模版视图相对路径(默认根路径由 [Module.RouteSet](module.md) 设置), 用法如下: 
+Render() renders template view HTML data and writes to Response object. Pass template view relative path (default root path is set by [Module.RouteSet](module.md)), usage as follows:
 
-* 当业务Action方法中传入 c.Render("user", "path/of/name.tpl") 时, 系统会在 模块名为 "user" 的模版路径下寻找 "path/of/name.tpl" 的模版并渲染到 Response 对象.
-* 当业务Action方法中传入 c.Render("path/of/name.tpl") 时, 系统在当前模块下寻找 "path/of/name.tpl" 的模版并渲染到 Response 对象.
-* 当业务Action方法中没有调用 c.Render() 同时 AutoRender==true 时，系统在当前模块下寻找 "Controller/Action.tpl" (注意模版名字大小需要和Controller/Action 名对应) 固定格式的模版并渲染到 Response 对象.
+* When c.Render("user", "path/of/name.tpl") is passed in business Action method, system will search for "path/of/name.tpl" template in module named "user" and render to Response object.
+* When c.Render("path/of/name.tpl") is passed in business Action method, system will search for "path/of/name.tpl" template in current module and render to Response object.
+* When c.Render() is not called in business Action method and AutoRender==true, system will search for "Controller/Action.tpl" (note that template name case needs to correspond to Controller/Action name) fixed format template in current module and render to Response object.
 
 ### RenderError(status int, msg string)
 
-RenderError() 用于向 Response 输出异常 HTTP Status 状态的信息，比如:
+RenderError() is used to output exception HTTP Status status information to Response, such as:
 ``` go
 func (c User) EntryAction() {
 	if c.Params.Get("id") == "" {
@@ -150,21 +148,20 @@ func (c User) EntryAction() {
 }
 ```
 
-### RenderJson(...) 和 RenderJsonIndent(...)
+### RenderJson(...) and RenderJsonIndent(...)
 
-用于向 Response 输出 JSON 格式文本信息, 多用于API/JSON场景，如:
+Used to output JSON format text information to Response, mostly used for API/JSON scenarios, such as:
 
 ``` go
 func (c User) EntryAction() {
 	jsonStruct := struct {
 		Name string `json:"name"`
 	} {
-		Name: "robot"
+		Name: "robot",
 	}
 	c.RenderJson(jsonStruct)
 	// c.RenderJsonIndent(jsonStruct, "\t")
 }
 ```
 
-注: 当 RenderJson*() 或者 RenderError() 被调用时, 自动设置 AutoRender=false, 系统不再执行其它默认的 Reander 操作.
-
+Note: When RenderJson*() or RenderError() is called, AutoRender is automatically set to false, and system no longer executes other default Render operations.

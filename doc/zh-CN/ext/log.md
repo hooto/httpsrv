@@ -1,18 +1,18 @@
 ## log
 
-httpsrv does not have a built-in log interface. If you need logging functionality, you can use the following dependency library:
+httpsrv 没有内置的 log 接口，如果有这方面需求，可使用如下依赖库：
 
 * hooto/hlog4g [https://github.com/hooto/hlog4g](https://github.com/hooto/hlog4g)
 
-## Install hlog4g
+## 安装 hlog4g
 
 ```bash
 go get -u github.com/hooto/hlog4g/hlog
 ```
 
-## Basic Usage
+## 基本使用
 
-### Print and Printf
+### Print 和 Printf
 
 ```go
 package main
@@ -22,20 +22,20 @@ import (
 )
 
 func main() {
-	// Print: variable argument printing
+	// Print: 可变参数打印
 	hlog.Print("info", "started")
 	hlog.Print("error", "the error code/message: ", 400, "/", "bad request")
 
-	// Printf: formatted printing
+	// Printf: 格式化打印
 	hlog.Printf("error", "the error code/message: %d/%s", 400, "bad request")
 
 	select {}
 }
 ```
 
-### Log Levels
+### 日志级别
 
-hlog4g supports multiple log levels:
+hlog4g 支持多个日志级别：
 
 ```go
 package main
@@ -45,24 +45,24 @@ import (
 )
 
 func main() {
-	// DEBUG level
+	// DEBUG 级别
 	hlog.Debug("debug message")
 
-	// INFO level (default)
+	// INFO 级别（默认）
 	hlog.Info("service started")
 
-	// WARNING level
+	// WARNING 级别
 	hlog.Warning("this is a warning")
 
-	// ERROR level
+	// ERROR 级别
 	hlog.Error("an error occurred")
 
-	// FATAL level (will terminate the program)
+	// FATAL 级别（会终止程序）
 	// hlog.Fatal("fatal error")
 }
 ```
 
-### Log Output Format
+### 日志输出格式
 
 ```shell
 ./main --logtostderr=true
@@ -72,60 +72,60 @@ E 2019-07-07 20:39:16.448476 main.go:11] the error code/message: 400/bad request
 E 2019-07-07 20:39:16.448494 main.go:14] the error code/message: 400/bad request
 ```
 
-Log format explanation:
-- `I` / `E` / `W` / `D` / `F`: Log level
-- `2019-07-07 20:39:16.448449`: Timestamp (microsecond precision)
-- `main.go:10`: Filename and line number
-- `started`: Log content
+日志格式说明：
+- `I` / `E` / `W` / `D` / `F`: 日志级别
+- `2019-07-07 20:39:16.448449`: 时间戳（精确到微秒）
+- `main.go:10`: 文件名和行号
+- `started`: 日志内容
 
-## Command Line Arguments Configuration
+## 命令行参数配置
 
-hlog4g supports configuring log output through command line arguments:
+hlog4g 支持通过命令行参数配置日志输出：
 
-### Output to Terminal
+### 输出到终端
 
 ```bash
-# Output logs to stderr
+# 将日志输出到标准错误输出
 ./main --logtostderr=true
 ```
 
-### Output to File
+### 输出到文件
 
 ```bash
-# Output logs to a specified directory
+# 将日志输出到指定目录
 ./main --log_dir=/var/log/myapp
 
-# Output to both terminal and file
+# 同时输出到终端和文件
 ./main --logtostderr=true --log_dir=/var/log/myapp
 ```
 
-### Set Log Level
+### 设置日志级别
 
 ```bash
-# Only output INFO level and above
+# 只输出 INFO 级别及以上的日志
 ./main --v=0
 
-# Output WARNING level and above
+# 输出 WARNING 级别及以上的日志
 ./main --v=-1
 
-# Output DEBUG level and above
+# 输出 DEBUG 级别及以上的日志
 ./main --v=1
 ```
 
-### Set Log File Size Limit
+### 设置日志文件大小限制
 
 ```bash
-# Maximum 100MB per log file
+# 单个日志文件最大 100MB
 ./main --logtostderr=false --log_dir=/var/log/myapp --log_max_size=100
 
-# Keep at most 10 log files
+# 最多保留 10 个日志文件
 ./main --log_dir=/var/log/myapp --log_max_files=10
 
-# Log file retention days (default 7 days)
+# 日志文件保留天数（默认 7 天）
 ./main --log_dir=/var/log/myapp --log_max_age=30
 ```
 
-## Using Logs in Controller
+## 在 Controller 中使用日志
 
 ```go
 package controller
@@ -145,7 +145,7 @@ func (c User) LoginAction() {
 
 	hlog.Info("user login attempt", "username:", username)
 
-	// Verify user
+	// 验证用户
 	if username == "admin" && password == "password" {
 		hlog.Info("user login success", "username:", username)
 		
@@ -154,11 +154,11 @@ func (c User) LoginAction() {
 		
 		c.RenderJson(map[string]string{
 			"status": "success",
-			"message": "Login successful",
+			"message": "登录成功",
 		})
 	} else {
 		hlog.Warning("user login failed", "username:", username, "reason: invalid credentials")
-		c.RenderError(401, "Invalid username or password")
+		c.RenderError(401, "用户名或密码错误")
 	}
 }
 
@@ -169,24 +169,24 @@ func (c User) RegisterAction() {
 
 	hlog.Info("user register attempt", "username:", username, "email:", email)
 
-	// Check if user already exists
+	// 检查用户是否已存在
 	if userExists(username) {
 		hlog.Warning("user register failed", "username:", username, "reason: user already exists")
-		c.RenderError(400, "Username already exists")
+		c.RenderError(400, "用户名已存在")
 		return
 	}
 
-	// Create user
+	// 创建用户
 	if err := createUser(username, email, password); err != nil {
 		hlog.Error("user register failed", "username:", username, "error:", err.Error())
-		c.RenderError(500, "Registration failed")
+		c.RenderError(500, "注册失败")
 		return
 	}
 
 	hlog.Info("user register success", "username:", username)
 	c.RenderJson(map[string]string{
 		"status": "success",
-		"message": "Registration successful",
+		"message": "注册成功",
 	})
 }
 
@@ -197,21 +197,21 @@ func (c User) DeleteAction() {
 
 	if err := deleteUser(id); err != nil {
 		hlog.Error("user delete failed", "user_id:", id, "error:", err.Error())
-		c.RenderError(500, "Delete failed")
+		c.RenderError(500, "删除失败")
 		return
 	}
 
 	hlog.Info("user delete success", "user_id:", id)
 	c.RenderJson(map[string]string{
 		"status": "success",
-		"message": "Delete successful",
+		"message": "删除成功",
 	})
 }
 ```
 
-## Structured Logging
+## 结构化日志
 
-hlog4g supports structured logging with key-value format:
+hlog4g 支持结构化日志，可以记录键值对格式的日志：
 
 ```go
 package main
@@ -221,7 +221,7 @@ import (
 )
 
 func main() {
-	// Log structured data
+	// 记录结构化日志
 	hlog.Info("user_action", 
 		"action", "login",
 		"user_id", "12345",
@@ -230,7 +230,7 @@ func main() {
 		"duration_ms", 45,
 	)
 
-	// Log error information
+	// 记录错误信息
 	hlog.Error("database_error",
 		"operation", "query",
 		"table", "users",
@@ -240,9 +240,9 @@ func main() {
 }
 ```
 
-## Performance Logging
+## 性能日志
 
-Record API request performance metrics:
+记录 API 请求的性能指标：
 
 ```go
 package middleware
@@ -256,17 +256,17 @@ import (
 func LoggingFilter(c *httpsrv.Controller, fc []httpsrv.Filter) {
 	startTime := time.Now()
 
-	// Record request start
+	// 记录请求开始
 	hlog.Info("request_start",
 		"method", c.Request.Method,
 		"path", c.Request.URL.Path,
 		"remote_addr", c.Request.RemoteAddr,
 	)
 
-	// Continue executing subsequent filters
+	// 继续执行后续 Filter
 	fc[0](c, fc[1:])
 
-	// Record request end
+	// 记录请求结束
 	duration := time.Since(startTime)
 	hlog.Info("request_end",
 		"method", c.Request.Method,
@@ -277,24 +277,24 @@ func LoggingFilter(c *httpsrv.Controller, fc []httpsrv.Filter) {
 }
 ```
 
-Register filter in Service:
+在 Service 中注册 Filter：
 
 ```go
 func main() {
-	// Register logging filter
+	// 注册日志 Filter
 	httpsrv.GlobalService.Filters = []httpsrv.Filter{
 		middleware.LoggingFilter,
 	}
 
-	// Register module
+	// 注册模块
 	httpsrv.GlobalService.HandleModule("/", NewModule())
 	httpsrv.GlobalService.Start()
 }
 ```
 
-## Error Stack Logging
+## 错误堆栈日志
 
-Log detailed error stack traces:
+记录详细的错误堆栈信息：
 
 ```go
 package controller
@@ -314,27 +314,27 @@ func (c Task) ExecuteAction() {
 	hlog.Info("task execution start", "task_id:", taskID)
 
 	if err := executeTask(taskID); err != nil {
-		// Log error stack
+		// 记录错误堆栈
 		hlog.Error("task execution failed", 
 			"task_id:", taskID,
 			"error:", err.Error(),
 			"stack", hlog.Stack(),
 		)
-		c.RenderError(500, "Task execution failed")
+		c.RenderError(500, "任务执行失败")
 		return
 	}
 
 	hlog.Info("task execution success", "task_id:", taskID)
 	c.RenderJson(map[string]string{
 		"status": "success",
-		"message": "Task execution successful",
+		"message": "任务执行成功",
 	})
 }
 ```
 
-## Log Rotation Configuration
+## 日志轮转配置
 
-### Programmatic Configuration
+### 程序内配置
 
 ```go
 package main
@@ -344,66 +344,66 @@ import (
 )
 
 func main() {
-	// Configure log output
+	// 配置日志输出
 	hlog.SetOutput("file", "./logs/app.log")
 	
-	// Configure log level
+	// 配置日志级别
 	hlog.SetLevel(hlog.LevelInfo)
 	
-	// Configure log format
+	// 配置日志格式
 	hlog.SetFormat(hlog.FormatText)
 	
-	// Configure log rotation
+	// 配置日志轮转
 	hlog.SetRotation(&hlog.RotationConfig{
-		MaxSize:    100,  // Max 100MB per file
-		MaxFiles:   10,   // Keep at most 10 files
-		MaxAge:     7,    // Keep for 7 days
-		Compress:   true, // Compress old log files
+		MaxSize:    100,  // 单个文件最大 100MB
+		MaxFiles:   10,   // 最多保留 10 个文件
+		MaxAge:     7,    // 保留 7 天
+		Compress:   true, // 压缩旧日志文件
 	})
 
-	// Use logging
+	// 使用日志
 	hlog.Info("application started")
 }
 ```
 
-### Configuration File Example
+### 配置文件示例
 
-Create `logging.conf` file:
+创建 `logging.conf` 文件：
 
 ```ini
 [log]
-# Log level: 0=DEBUG, 1=INFO, 2=WARNING, 3=ERROR, 4=FATAL
+# 日志级别: 0=DEBUG, 1=INFO, 2=WARNING, 3=ERROR, 4=FATAL
 level = 1
 
-# Log output: stdout, file, both
+# 日志输出方式: stdout, file, both
 output = both
 
-# Log file directory
+# 日志文件路径
 log_dir = ./logs
 
-# Log file name prefix
+# 日志文件名前缀
 log_file_prefix = app
 
-# Maximum size of a single log file (MB)
+# 单个日志文件最大大小 (MB)
 log_max_size = 100
 
-# Maximum number of log files to keep
+# 最多保留的日志文件数
 log_max_files = 10
 
-# Log file retention days
+# 日志文件保留天数
 log_max_age = 7
 
-# Whether to compress old log files
+# 是否压缩旧日志文件
 log_compress = true
 
-# Log format: text, json
+# 日志格式: text, json
 log_format = text
 
-# Whether to include call stack
+# 是否包含调用堆栈
 log_stack = false
 ```
 
-Load configuration in program:
+在程序中加载配置：
 
 ```go
 package main
@@ -413,19 +413,19 @@ import (
 )
 
 func main() {
-	// Load from configuration file
+	// 从配置文件加载
 	if err := hlog.LoadConfig("logging.conf"); err != nil {
 		panic(err)
 	}
 
-	// Use logging
+	// 使用日志
 	hlog.Info("application started with config")
 }
 ```
 
-## Production Best Practices
+## 生产环境最佳实践
 
-### 1. Separate Logs by Level
+### 1. 分离不同级别的日志
 
 ```go
 package config
@@ -435,18 +435,18 @@ import (
 )
 
 func SetupLogging() {
-	// Set INFO level and above to file
+	// 设置 INFO 级别及以上日志输出到文件
 	hlog.SetOutputByLevel(hlog.LevelInfo, "file", "./logs/info.log")
 
-	// Set ERROR level and above to separate file
+	// 设置 ERROR 级别及以上日志输出到单独文件
 	hlog.SetOutputByLevel(hlog.LevelError, "file", "./logs/error.log")
 
-	// Set FATAL level to both terminal and file
+	// FATAL 级别同时输出到终端和文件
 	hlog.SetOutputByLevel(hlog.LevelFatal, "both", "./logs/fatal.log")
 }
 ```
 
-### 2. Sensitive Information Masking
+### 2. 敏感信息脱敏
 
 ```go
 package util
@@ -455,7 +455,7 @@ import (
 	"strings"
 )
 
-// Mask sensitive information
+// 脱敏处理
 func MaskEmail(email string) string {
 	parts := strings.Split(email, "@")
 	if len(parts) != 2 {
@@ -483,7 +483,7 @@ func MaskIDCard(idCard string) string {
 }
 ```
 
-Use in logging:
+在日志中使用：
 
 ```go
 hlog.Info("user_login", 
@@ -494,9 +494,9 @@ hlog.Info("user_login",
 )
 ```
 
-### 3. Asynchronous Logging
+### 3. 异步日志
 
-For high-performance scenarios, use asynchronous logging:
+对于高性能场景，可以使用异步日志：
 
 ```go
 package main
@@ -506,22 +506,22 @@ import (
 )
 
 func main() {
-	// Enable asynchronous logging
-	hlog.SetAsync(true, 1000) // Buffer size 1000
+	// 启用异步日志
+	hlog.SetAsync(true, 1000) // 缓冲区大小 1000
 
-	// Use logging
+	// 使用日志
 	for i := 0; i < 10000; i++ {
 		hlog.Info("async_log", "index", i)
 	}
 
-	// Ensure all logs are written
+	// 确保所有日志都写入
 	hlog.Flush()
 }
 ```
 
-### 4. Log Context Tracking
+### 4. 日志上下文追踪
 
-Add trace ID for each request:
+为每个请求添加追踪 ID：
 
 ```go
 package middleware
@@ -533,36 +533,36 @@ import (
 )
 
 func TraceFilter(c *httpsrv.Controller, fc []httpsrv.Filter) {
-	// Generate or get trace ID
+	// 生成或获取追踪 ID
 	traceID := c.Request.Header.Get("X-Trace-ID")
 	if traceID == "" {
 		traceID = uuid.New().String()
 	}
 
-	// Set to response header
+	// 设置到响应头
 	c.Response.Out.Header().Set("X-Trace-ID", traceID)
 
-	// Add to log context
+	// 添加到日志上下文
 	hlog.SetContext("trace_id", traceID)
 
-	// Continue execution
+	// 继续执行
 	fc[0](c, fc[1:])
 
-	// Clear context
+	// 清除上下文
 	hlog.ClearContext()
 }
 ```
 
-Use in Controller:
+在 Controller 中使用：
 
 ```go
 func (c User) LoginAction() {
-	// Logs will automatically include trace_id
+	// 日志会自动包含 trace_id
 	hlog.Info("user_login", "username:", username)
 }
 ```
 
-### 5. Log Monitoring and Alerting
+### 5. 日志监控和告警
 
 ```go
 package monitor
@@ -581,7 +581,7 @@ var errorCounter = make(map[string]*ErrorCount)
 
 func CheckErrors() {
 	for key, counter := range errorCounter {
-		// Send alert if more than 10 errors in 1 minute
+		// 1分钟内错误超过 10 次，发送告警
 		if counter.count > 10 && time.Since(counter.startTime) < time.Minute {
 			hlog.Error("high_error_rate",
 				"error_type", key,
@@ -589,7 +589,7 @@ func CheckErrors() {
 				"duration", time.Since(counter.startTime),
 			)
 			
-			// Send alert notification (email, SMS, etc.)
+			// 发送告警通知（邮件、短信等）
 			sendAlert(key, counter.count)
 		}
 	}
@@ -605,15 +605,15 @@ func RecordError(errorType string) {
 }
 ```
 
-## Notes
+## 注意事项
 
-1. **Performance Considerations**: Logging operations have some performance overhead. In production, it's recommended to use asynchronous logging
-2. **Disk Space**: Configure log rotation strategy appropriately to avoid log files occupying too much disk space
-3. **Sensitive Information**: Be careful not to include passwords, keys, or other sensitive information in logs
-4. **Log Levels**: For production, use INFO or WARNING level. For development, use DEBUG level
-5. **Log Format**: Structured logging is recommended for easier analysis and retrieval
+1. **性能考虑**：日志操作会带来一定的性能开销，生产环境建议使用异步日志
+2. **磁盘空间**：合理配置日志轮转策略，避免日志文件占用过多磁盘空间
+3. **敏感信息**：记录日志时注意不要包含密码、密钥等敏感信息
+4. **日志级别**：生产环境建议使用 INFO 或 WARNING 级别，开发环境使用 DEBUG 级别
+5. **日志格式**：建议使用结构化日志，便于后续分析和检索
 
-Note:
+注：
 
-* During debugging/development, if you need to print logs to the current terminal, add `--logtostderr=true` to the command
-* For production deployment, if you need to output logs to local files, add `--log_dir=/path/of/log/` to the command
+* 调试开发时，如果需要打印日志到当前命令终端，可在命令后加入 `--logtostderr=true`
+* 正式部署时，如果需要将日志输出到本地文件，可以在可执行命令后加入 `--log_dir=/path/of/log/`

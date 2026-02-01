@@ -1,33 +1,35 @@
 # httpsrv
 
-httpsrv 是一个轻量级、模块化、高性能的 MVC Web 框架，专为 Go 语言设计，适用于开发面向互联网的各类 API、Web 应用。
+httpsrv is a lightweight, modular, high-performance MVC web framework designed for Go, suitable for developing various internet-facing APIs and web applications.
 
-## 特性
+**Language:** [English](README.md) | [中文](README.zh-CN.md)
 
-- **模块化架构** - 业务代码通过模块组织管理，适合企业级复杂应用开发
-- **轻量简洁** - 核心代码精简（约 3000 行），接口稳定可靠，便于长期维护
-- **高性能** - 低内存占用，高并发稳定可靠，主流云服务商 2 核主机 QPS 可达 20000+
-- **MVC 模式** - 支持标准的 MVC 架构，代码结构清晰
-- **模板引擎** - 内置模板引擎，支持灵活的视图渲染
-- **多语言支持** - 内置 i18n 国际化支持
-- **中间件** - 支持请求过滤和拦截器
-- **会话管理** - 内置会话管理功能
+## Features
 
-## 文档
+- **Modular Architecture** - Business code organized through modules, ideal for enterprise-level complex application development
+- **Lightweight & Concise** - Core code is concise (~3000 lines) with stable and reliable interfaces, easy for long-term maintenance
+- **High Performance** - Low memory footprint, high concurrency stability, QPS can reach 20000+ on 2-core instances from mainstream cloud providers
+- **MVC Pattern** - Supports standard MVC architecture with clear code structure
+- **Template Engine** - Built-in template engine supporting flexible view rendering
+- **Internationalization** - Built-in i18n support for multiple languages
+- **Middleware** - Supports request filters and interceptors
+- **Session Management** - Built-in session management functionality
 
-- [快速开始](doc/start.md)
-- [常见问题](doc/qa.md)
-- [完整文档索引](doc/SUMMARY.md)
+## Documentation
 
-## 安装
+- [Quick Start](doc/start.md)
+- [FAQ](doc/qa.md)
+- [Complete Documentation Index](doc/SUMMARY.md)
+
+## Installation
 
 ```bash
 go get -u github.com/hooto/httpsrv
 ```
 
-## 快速开始
+## Quick Start
 
-创建一个简单的 Hello World 应用：
+Create a simple Hello World application:
 
 ```go
 package main
@@ -36,17 +38,17 @@ import (
     "github.com/hooto/httpsrv"
 )
 
-// 定义一个控制器
+// Define a controller
 type Hello struct {
     *httpsrv.Controller
 }
 
-// 定义一个 Action
+// Define an Action
 func (c Hello) WorldAction() {
     c.RenderString("hello world")
 }
 
-// 创建模块
+// Create module
 func NewModule() httpsrv.Module {
     module := httpsrv.NewModule("demo")
     module.ControllerRegister(new(Hello))
@@ -54,104 +56,104 @@ func NewModule() httpsrv.Module {
 }
 
 func main() {
-    // 注册模块到全局服务
+    // Register module to global service
     httpsrv.GlobalService.ModuleRegister("/", NewModule())
     
-    // 设置端口
+    // Set port
     httpsrv.GlobalService.Config.HttpPort = 8080
     
-    // 启动服务
+    // Start service
     httpsrv.GlobalService.Start()
 }
 ```
 
-运行：
+Run:
 
 ```bash
 go run main.go
 ```
 
-访问：
+Visit:
 
 ```bash
 curl http://localhost:8080/hello/world/
 ```
 
-输出：
+Output:
 
 ```
 hello world
 ```
 
-## 项目结构
+## Project Structure
 
-推荐的目录结构：
+Recommended directory structure:
 
 ```
-├─ bin/              # 编译后的可执行文件
-├─ etc/              # 配置文件
-├─ config/           # 配置解析代码
+├─ bin/              # Compiled executables
+├─ etc/              # Configuration files
+├─ config/           # Configuration parsing code
 ├─ cmd/
 │  └─ server/
-│     └─ main.go     # 服务入口
-├─ data/             # 数据库访问层
-├─ websrv/           # 模块目录
-│  ├─ api-v1/        # API 模块
-│  └─ frontend/      # 前端模块
-│     └─ views/      # 模板文件
-├─ webui/            # 静态文件
-└─ var/              # 运行时数据
+│     └─ main.go     # Service entry point
+├─ data/             # Database access layer
+├─ websrv/           # Module directory
+│  ├─ api-v1/        # API module
+│  └─ frontend/      # Frontend module
+│     └─ views/      # Template files
+├─ webui/            # Static files
+└─ var/              # Runtime data
 ```
 
-完整示例项目：[httpsrv-demo](https://github.com/hooto/httpsrv-demo)
+Complete example project: [httpsrv-demo](https://github.com/hooto/httpsrv-demo)
 
-## 推荐依赖库
+## Recommended Dependencies
 
-httpsrv 保持核心简洁，以下是一些推荐使用的第三方库：
+httpsrv keeps the core concise. Here are some recommended third-party libraries:
 
-### 数据库
-- [mysqlgo](https://github.com/lynkdb/mysqlgo) - MySQL 客户端
-- [pgsqlgo](https://github.com/lynkdb/pgsqlgo) - PostgreSQL 客户端
-- [redisgo](https://github.com/lynkdb/redisgo) - Redis 客户端
-- [kvgo](https://github.com/lynkdb/kvgo) - 嵌入式 Key-Value 数据库
+### Database
+- [mysqlgo](https://github.com/lynkdb/mysqlgo) - MySQL client
+- [pgsqlgo](https://github.com/lynkdb/pgsqlgo) - PostgreSQL client
+- [redisgo](https://github.com/lynkdb/redisgo) - Redis client
+- [kvgo](https://github.com/lynkdb/kvgo) - Embedded Key-Value database
 
-### 工具库
-- [hlog4g](https://github.com/hooto/hlog4g) - 日志库
-- [hini4g](https://github.com/hooto/hini4g) - INI 配置文件解析
-- [hflag4g](https://github.com/hooto/hflag4g) - 命令行参数处理
-- [hlang4g](https://github.com/hooto/hlang4g) - i18n 国际化
-- [hcaptcha4g](https://github.com/hooto/hcaptcha4g) - 验证码生成
+### Utility Libraries
+- [hlog4g](https://github.com/hooto/hlog4g) - Logging library
+- [hini4g](https://github.com/hooto/hini4g) - INI configuration file parsing
+- [hflag4g](https://github.com/hooto/hflag4g) - Command line argument handling
+- [hlang4g](https://github.com/hooto/hlang4g) - i18n internationalization
+- [hcaptcha4g](https://github.com/hooto/hcaptcha4g) - CAPTCHA generation
 
-更多 Go 生态库可参考：[awesome-go](https://github.com/avelino/awesome-go)
+More Go ecosystem libraries: [awesome-go](https://github.com/avelino/awesome-go)
 
-## 系统要求
+## System Requirements
 
-- **Go 版本**: 1.22 或更高
-- **推荐系统**: Linux、Unix 或 macOS（Windows 未做兼容测试）
+- **Go Version**: 1.22 or higher
+- **Recommended Systems**: Linux, Unix, or macOS (Windows not tested for compatibility)
 
-## 核心组件
+## Core Components
 
-- [Service](doc/service.md) - 服务容器和配置管理
-- [Config](doc/config.md) - 配置文件处理
-- [Module](doc/module.md) - 模块管理和路由
-- [Controller](doc/controller.md) - 控制器和请求处理
-- [Template](doc/template.md) - 模板渲染和视图
-- [Router](doc/router.md) - 路由配置和匹配
+- [Service](doc/service.md) - Service container and configuration management
+- [Config](doc/config.md) - Configuration file handling
+- [Module](doc/module.md) - Module management and routing
+- [Controller](doc/controller.md) - Controller and request handling
+- [Template](doc/template.md) - Template rendering and views
+- [Router](doc/router.md) - Routing configuration and matching
 
-## 扩展组件
+## Extension Components
 
-- [log](doc/ext/log.md) - 日志记录扩展
-- [data-rdb](doc/ext/data-rdb.md) - 关系数据库扩展
-- [data-kv](doc/ext/data-kv.md) - Key-Value 数据库扩展
-- [flag](doc/ext/flag.md) - 命令行参数扩展
+- [log](doc/ext/log.md) - Logging extension
+- [data-rdb](doc/ext/data-rdb.md) - Relational database extension
+- [data-kv](doc/ext/data-kv.md) - Key-Value database extension
+- [flag](doc/ext/flag.md) - Command line argument extension
 
-## 参考项目
+## Reference Projects
 
-httpsrv 在架构设计和部分代码实现中参考过以下项目，特此感谢！
+httpsrv has referenced the following projects in architecture design and some code implementations. Special thanks!
 
 - [Revel Framework](https://github.com/revel/revel/)
 - [Beego Framework](https://github.com/astaxie/beego/)
 
-## 许可证
+## License
 
 [Apache License 2.0](LICENSE)

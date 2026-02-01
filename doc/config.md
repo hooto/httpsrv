@@ -1,6 +1,6 @@
-## Config 组件
+## Config Component
 
-配置模块用于定义 HTTP 服务启动时的依赖参数，定义如下:
+The configuration module is used to define dependency parameters when HTTP service starts, defined as follows:
 
 ``` go
 type Config struct {
@@ -13,19 +13,18 @@ type Config struct {
 }
 ```
 
+Parameter Description
 
-参数说明
-
-| 字段 | 类型 | 默认值 | 必需 | 说明 |
+| Field | Type | Default | Required | Description |
 |----|----|----|----|----|
-| HttpAddr | string | 否 | 空 | 设置以 Unix domain socket 方式发布服务 |
-| HttpPort | int | 否 | 8080 | 设置以 TCP 端口发布服务 |
-| HttpTimeout | int | 否 |  30 | 设置 http 连接超时时间, 单位秒 |
-| UrlBasePath | string | 否 | / | 设置 http 服务访问的URL根路径，默认为 / |
-| CookieKeyLocale | string | 否 | lang | 当启用 i18n 时，httpsrv 会在cookie中以默认字段名 `lang` 设置语言包参数，这个值可自定义 cookie 保存的字段名 |
-| CookieKeySession | string | 否 | access_token | 当启用 Session 时，httpsrv 会在cookie中以默认字段名 `access_token` 设置用户状态的 Session 值信息，这个值可自定义 cookie 保存的字段名 |
+| HttpAddr | string | No | Empty | Set to publish services via Unix domain socket |
+| HttpPort | int | No | 8080 | Set to publish services via TCP port |
+| HttpTimeout | int | No | 30 | Set HTTP connection timeout in seconds |
+| UrlBasePath | string | No | / | Set root URL path for HTTP service access, default is / |
+| CookieKeyLocale | string | No | lang | When i18n is enabled, httpsrv will set language package parameters in cookie with default field name `lang`. This value can customize cookie field name for saving |
+| CookieKeySession | string | No | access_token | When Session is enabled, httpsrv will set user status Session value information in cookie with default field name `access_token`. This value can customize cookie field name for saving |
 
-Config 是 [Service](service.md) 的一个内置项，通过 Service 引用, 如:
+Config is a built-in item of [Service](service.md) and can be referenced via Service, such as:
 
 ``` go
 package main
@@ -35,20 +34,20 @@ import (
 )
 
 func main() {
-	// 通过全局 Service 实例引用 
+	// Reference via global Service instance 
 	httpsrv.DefaultService.Config.HttpPort = 8080
 
-	// 新建 Service 实例引用
+	// Reference via new Service instance
 	srv := httpsrv.NewService()
 	srv.Config.HttpPort = 8081
 }
 ```
 
-## 扩展配置项
+## Extended Configuration Items
 
-在 `type Config struct` 这个数据定义基础之上，扩展了部分动态接口用于扩展配置项
+On the basis of `type Config struct` data definition, some dynamic interfaces are extended to extend configuration items.
 
-### 注册新的模版内置调用函数 (可选)
+### Register New Template Built-in Function (Optional)
 
 ``` go
 package main
@@ -69,5 +68,4 @@ func main() {
 }
 ```
 
-> 注: 系统默认内置了常用视图模版(View Template)函数，具体可参考代码文件 [template-func.go](https://github.com/hooto/httpsrv/blob/master/template-func.go)
-
+> Note: System has built-in commonly used view template (View Template) functions by default. For details, refer to code file [template-func.go](https://github.com/hooto/httpsrv/blob/master/template-func.go)
