@@ -17,7 +17,7 @@ package httpsrv
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"log/slog"
 	"os"
 	"regexp"
 	"strings"
@@ -63,12 +63,12 @@ func i18nLoadMessages(file string) {
 
 	str, err := i18nFsFileGetRead(file)
 	if err != nil {
-		defaultLogger.Warnf("httpsrv/lang load file (%s) err %s", file, err.Error())
+		slog.Warn("httpsrv/lang load file err", "file", file, "err", err.Error())
 		return
 	}
 
 	if err := jsonDecode([]byte(str), &cfg); err != nil {
-		defaultLogger.Warnf("httpsrv/lang setup err %s", err.Error())
+		slog.Warn("httpsrv/lang setup err", "err", err.Error())
 		return
 	}
 
@@ -112,13 +112,13 @@ func i18nFsFileGetRead(path string) (string, error) {
 	i18nMut.Lock()
 	defer i18nMut.Unlock()
 
-	if st, err := os.Stat(path); err != nil || os.IsNotExist(err) {
-		return "", errors.New("File Not Found")
+	if st, err := os.Stat(path); err != nil {
+		return "", err
 	} else if st.Size() > (10 << 20) {
 		return "", errors.New("File size is too large")
 	}
 
-	ctn, err := ioutil.ReadFile(path)
+	ctn, err := os.ReadFile(path)
 	if err != nil {
 		return "", errors.New("File Can Not Readable")
 	}

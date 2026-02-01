@@ -32,8 +32,6 @@ func main() {
 
 	srv := httpsrv.NewService()
 
-	srv.SetLogger(httpsrv.NewRawLogger())
-
 	srv.HandleModule("/demo", mod)
 
 	srv.Start(":3000")

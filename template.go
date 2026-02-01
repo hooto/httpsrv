@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"log/slog"
 	"net/http"
 	"path"
 	"strings"
@@ -42,14 +43,20 @@ type TemplateLoader struct {
 	templateCache *lru.Cache
 }
 
+func newTemplateLoader() *TemplateLoader {
+	return &TemplateLoader{
+		templatePaths: map[string]string{},
+		templateSets:  map[string]*template.Template{},
+		templateCache: lru.New(128),
+	}
+}
+
 func (it *TemplateLoader) Clean(modUrlBase string) {
 
 	it.mu.Lock()
 	defer it.mu.Unlock()
 
-	if _, ok := it.templateSets[modUrlBase]; ok {
-		delete(it.templateSets, modUrlBase)
-	}
+	delete(it.templateSets, modUrlBase)
 
 	for k := range it.templatePaths {
 
@@ -112,9 +119,9 @@ func (it *TemplateLoader) Set(modUrlBase string, viewpaths []string, viewfss []h
 
 			it.templatePaths[modUrlBase+"."+templateNameL] = templateFile
 
-			defaultLogger.Infof("httpsrv: module %s, template %s added", modUrlBase, templateFile)
+			slog.Info("httpsrv module template added", "module", modUrlBase, "template", templateFile)
 		} else {
-			defaultLogger.Warnf("httpsrv: module %s, template %s parse err %s", modUrlBase, templateFile, err.Error())
+			slog.Warn("httpsrv module template parse err", "module", modUrlBase, "template", templateFile, "err", err.Error())
 		}
 
 		return err
@@ -179,11 +186,11 @@ func (it *TemplateLoader) Render(wr io.Writer, modUrlBase, tplPath string, arg i
 
 	defer func() {
 		if err := recover(); err != nil {
-			defaultLogger.Debugf("httpsrv: template (%s/%s) render err %v", modUrlBase, tplPath, err)
+			slog.Debug("httpsrv template render err", "module", modUrlBase, "template", tplPath, "err", err)
 		}
 	}()
 
-	// defaultLogger.Infof("httpsrv: template (%s/%s) render", modUrlBase, tplPath)
+	// slog.Info("httpsrv template render", "module", modUrlBase, "template", tplPath)
 
 	it.mu.RLock()
 	tplSet, ok := it.templateSets[modUrlBase]
@@ -210,7 +217,7 @@ func (it *TemplateLoader) rawRender(wr io.Writer, txt string, arg interface{}) e
 
 	defer func() {
 		if err := recover(); err != nil {
-			defaultLogger.Debugf("httpsrv: raw-render err %v", err)
+			slog.Debug("httpsrv raw-render err", "err", err)
 		}
 	}()
 
@@ -220,12 +227,12 @@ func (it *TemplateLoader) rawRender(wr io.Writer, txt string, arg interface{}) e
 	)
 
 	if itpl, ok := it.templateCache.Get(hkey); !ok {
-		tpl, err := template.New("raw").Parse(txt)
-		if err != nil {
+		if t, err := template.New("raw").Parse(txt); err != nil {
 			return err
+		} else {
+			tpl = t.Funcs(TemplateFuncs)
+			it.templateCache.Add(hkey, tpl)
 		}
-		tpl = tpl.Funcs(TemplateFuncs)
-		it.templateCache.Add(hkey, tpl)
 	} else {
 		tpl = itpl.(*template.Template)
 	}

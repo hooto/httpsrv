@@ -17,7 +17,7 @@ package httpsrv
 import (
 	"errors"
 	"fmt"
-	"html/template"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -26,8 +26,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/hooto/httpsrv/internal/lru"
 )
 
 type Service struct {
@@ -42,8 +40,6 @@ type Service struct {
 
 	modules  []*Module
 	handlers []*regHandler
-
-	logger Logger
 
 	TemplateLoader *TemplateLoader
 }
@@ -66,13 +62,7 @@ func NewService() *Service {
 
 		router: &rootRouter{},
 
-		logger: defaultLogger,
-
-		TemplateLoader: &TemplateLoader{
-			templatePaths: map[string]string{},
-			templateSets:  map[string]*template.Template{},
-			templateCache: lru.New(128), // TODO
-		},
+		TemplateLoader: newTemplateLoader(),
 	}
 }
 
@@ -88,7 +78,7 @@ func (s *Service) regHandler(h *regHandler) {
 	for i, v := range s.handlers {
 		if v.pattern == h.pattern {
 			s.handlers[i] = h
-			s.logger.Infof("route reset %s", h.pattern)
+			slog.Info("route reset", "pattern", h.pattern)
 			return
 		}
 	}
@@ -231,9 +221,9 @@ func (s *Service) Start(args ...interface{}) error {
 
 	if len(args) > 0 {
 		for _, arg := range args {
-			switch arg.(type) {
+			switch arg := arg.(type) {
 			case string:
-				if host, port, err := net.SplitHostPort(arg.(string)); err == nil {
+				if host, port, err := net.SplitHostPort(arg); err == nil {
 					localAddr = host + ":" + port
 				}
 			}
@@ -241,7 +231,7 @@ func (s *Service) Start(args ...interface{}) error {
 	}
 
 	if network != "unix" && network != "tcp" {
-		s.logger.Fatalf("httpsrv: Unknown Network %s", network)
+		slog.Error("httpsrv unknown network", "network", network)
 		return errors.New("invalid network " + network)
 	}
 
@@ -285,10 +275,10 @@ func (s *Service) Start(args ...interface{}) error {
 	//
 	listener, err := net.Listen(network, localAddr)
 	if err != nil {
-		s.logger.Fatalf("httpsrv: net listen error %v", err)
+		slog.Error("httpsrv net listen error", "err", err)
 		return err
 	}
-	s.logger.Infof("httpsrv: listening on %s/%s", network, localAddr)
+	slog.Info("httpsrv listening", "network", network, "address", localAddr)
 
 	if network == "unix" {
 		os.Chmod(localAddr, 0770)
@@ -296,19 +286,10 @@ func (s *Service) Start(args ...interface{}) error {
 
 	//
 	if err = s.server.Serve(listener); err != nil {
-		s.logger.Fatalf("httpsrv: start server fail %v", err)
+		slog.Error("httpsrv start server fail", "err", err)
 	}
 
 	return err
-}
-
-func (s *Service) SetLogger(lg Logger) {
-	if lg != nil {
-		s.logger = lg
-		if _, ok := defaultLogger.(*emptyLogger); ok {
-			defaultLogger = lg
-		}
-	}
 }
 
 func (s *Service) Stop() error {

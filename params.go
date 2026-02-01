@@ -39,12 +39,12 @@ func ParamsFilter(c *Controller) {
 	}
 }
 
-func (p *Params) reset() *Params {
-	p.values = make(url.Values)
-	p.inited = false
-	p.request = nil
-	return p
-}
+// func (p *Params) reset() *Params {
+// 	p.values = make(url.Values)
+// 	p.inited = false
+// 	p.request = nil
+// 	return p
+// }
 
 func (p *Params) init() {
 	if p.inited {

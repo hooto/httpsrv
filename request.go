@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"path/filepath"
 	"sort"
@@ -62,9 +61,9 @@ func newRequest(r *http.Request) *Request {
 	}
 
 	if req.ContentType == "application/x-www-form-urlencoded" &&
-		(r.Method == "POST" || r.Method == "PUT") {
+		(r.Method == "POST" || r.Method == "PUT") && req.Body != nil {
 		if _, err := io.Copy(&req.bodyBuffer, req.Body); err == nil {
-			req.Body = ioutil.NopCloser(bytes.NewReader(req.bodyBuffer.Bytes()))
+			req.Body = io.NopCloser(bytes.NewReader(req.bodyBuffer.Bytes()))
 			req.bodyRead = true
 		}
 	}
@@ -73,7 +72,7 @@ func newRequest(r *http.Request) *Request {
 }
 
 func (req *Request) RawBody() []byte {
-	if !req.bodyRead {
+	if !req.bodyRead && req.Body != nil {
 		if _, err := io.Copy(&req.bodyBuffer, req.Body); err != nil {
 			//
 		}
@@ -146,34 +145,32 @@ func resolveAcceptLanguage(r *http.Request) acceptLanguages {
 
 	var (
 		rals = strings.Split(k, ",")
-		als  = make(acceptLanguages, 0)
+		als  = make(acceptLanguages, 0, len(rals))
 	)
 
-	if len(als) > 0 {
-		for i, v := range rals {
+	for i, v := range rals {
 
-			if bef, aft, ok := strings.Cut(v, ";q="); ok {
-				quality, err := strconv.ParseFloat(aft, 32)
-				if err != nil {
-					quality = 1
-				}
-				als = append(als, &acceptLanguage{
-					Language: bef,
-					Quality:  float32(quality),
-				})
-			} else {
-				als = append(als, &acceptLanguage{
-					Language: v,
-					Quality:  1,
-				})
+		if bef, aft, ok := strings.Cut(v, ";q="); ok {
+			quality, err := strconv.ParseFloat(aft, 32)
+			if err != nil {
+				quality = 1
 			}
-			if i >= 5 {
-				break
-			}
+			als = append(als, &acceptLanguage{
+				Language: bef,
+				Quality:  float32(quality),
+			})
+		} else {
+			als = append(als, &acceptLanguage{
+				Language: v,
+				Quality:  1,
+			})
 		}
-		if len(als) > 1 {
-			sort.Sort(als)
+		if i >= 5 {
+			break
 		}
+	}
+	if len(als) > 1 {
+		sort.Sort(als)
 	}
 
 	acceptLanguageCache.Add(k, als)
@@ -181,11 +178,11 @@ func resolveAcceptLanguage(r *http.Request) acceptLanguages {
 	return als
 }
 
-func (it *acceptLanguage) set(lang string, qua float32) *acceptLanguage {
-	it.Language = lang
-	it.Quality = qua
-	return it
-}
+// func (it *acceptLanguage) set(lang string, qua float32) *acceptLanguage {
+// 	it.Language = lang
+// 	it.Quality = qua
+// 	return it
+// }
 
 // A collection of sortable acceptLanguage instances.
 type acceptLanguages []*acceptLanguage

@@ -15,6 +15,7 @@
 package httpsrv
 
 import (
+	"log/slog"
 	"net/http"
 	"path/filepath"
 	"reflect"
@@ -65,7 +66,7 @@ func (c *Controller) RenderHTML(htm string) {
 
 	defer func() {
 		if err := recover(); err != nil {
-			// println(err)
+			slog.Warn("httpsrv render-html", "panic", err)
 		}
 	}()
 
@@ -74,7 +75,7 @@ func (c *Controller) RenderHTML(htm string) {
 		c.Response.Header().Set("Content-Type", "text/html; charset=utf-8")
 		c.Response.Out.WriteHeader(http.StatusBadRequest)
 		c.Response.Out.Write([]byte("400 Bad Request"))
-		c.service.logger.Debugf("tpl render fail %s", err.Error())
+		slog.Debug("http tpl render fail", "err", err.Error())
 	} else {
 		c.Response.Header().Set("Content-Type", "text/html; charset=utf-8")
 		c.Response.WriteHeader(http.StatusOK)
@@ -102,7 +103,7 @@ func (c *Controller) Render(args ...interface{}) {
 	// Handle panics when rendering templates.
 	defer func() {
 		if err := recover(); err != nil {
-			// println(err)
+			slog.Warn("httpsrv render", "panic", err)
 		}
 	}()
 
@@ -111,8 +112,7 @@ func (c *Controller) Render(args ...interface{}) {
 		c.Response.Header().Set("Content-Type", "text/html; charset=utf-8")
 		c.Response.Out.WriteHeader(http.StatusBadRequest)
 		c.Response.Out.Write([]byte("400 Bad Request"))
-		c.service.logger.Debugf("tpl render fail mod-path %s, template-path %s, err %s",
-			modPath, templatePath, err.Error())
+		slog.Debug("http tpl render fail", "modPath", modPath, "templatePath", templatePath, "err", err.Error())
 	} else {
 		c.Response.Header().Set("Content-Type", "text/html; charset=utf-8")
 		c.Response.WriteHeader(http.StatusOK)
@@ -158,7 +158,7 @@ func (c *Controller) Redirect(url string) {
 
 	c.AutoRender = false
 
-	if len(url) < 1 {
+	if len(url) == 0 {
 		return
 	}
 

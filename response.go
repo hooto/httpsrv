@@ -40,7 +40,7 @@ func newResponse(w http.ResponseWriter) *Response {
 }
 
 func (resp *Response) Write(b []byte) (int, error) {
-	if resp.compWriter != nil && resp.Out.Header().Get("Content-Encoding") == "" {
+	if resp.compWriter != nil {
 		return resp.compWriter.Write(b)
 	}
 	return resp.buf.Write(b)

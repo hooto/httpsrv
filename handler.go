@@ -21,7 +21,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -121,9 +120,10 @@ func (it *regHandler) handle(
 			resp.compWriter.Close()
 
 			if w.Header().Get("Content-Encoding") == "" && resp.buf.Len() > 0 {
-				if ae == "gzip" {
+				switch ae {
+				case "gzip":
 					w.Header().Set("Content-Encoding", "gzip")
-				} else if ae == "br" {
+				case "br":
 					w.Header().Set("Content-Encoding", "br")
 				}
 			}
@@ -147,6 +147,12 @@ func (it *regHandler) handle(
 		}
 		subPath := urlPath[len(it.pattern)-1:]
 
+		// Prevent directory traversal attacks
+		if strings.Contains(subPath, "..") {
+			http.NotFound(resp, r)
+			return
+		}
+
 		if it.handlerFileServer.binFs != nil {
 			if fp, err := it.handlerFileServer.binFs.Open(subPath); err == nil {
 				defer fp.Close()
@@ -160,6 +166,12 @@ func (it *regHandler) handle(
 		}
 
 		file := filepath.Clean(it.handlerFileServer.filepath + "/" + subPath)
+
+		// Verify the file is within the allowed directory
+		if !strings.HasPrefix(file, filepath.Clean(it.handlerFileServer.filepath)+string(filepath.Separator)) {
+			http.NotFound(resp, r)
+			return
+		}
 
 		finfo, err := os.Stat(file)
 		if err != nil || finfo.IsDir() {
@@ -265,17 +277,20 @@ func (it *handlerModuler) find(r *http.Request) *handlerController {
 	)
 	it.mu.RLock()
 	defer it.mu.RUnlock()
+	if it.actions == nil {
+		return nil
+	}
 	if hc, ok := it.actions[k]; ok {
 		return hc
 	}
 	return nil
 }
 
-func handlerPathSlice(path string) (string, []string) {
-	path = strings.Replace(filepath.Clean(path), " ", "", -1)
-	if runtime.GOOS == "windows" {
-		path = strings.Replace(path, "\\", "/", -1)
-	}
-	path = strings.Trim(path, "/")
-	return "/" + path, strings.Split(path, "/")
-}
+// func handlerPathSlice(path string) (string, []string) {
+// 	path = strings.Replace(filepath.Clean(path), " ", "", -1)
+// 	if runtime.GOOS == "windows" {
+// 		path = strings.Replace(path, "\\", "/", -1)
+// 	}
+// 	path = strings.Trim(path, "/")
+// 	return "/" + path, strings.Split(path, "/")
+// }

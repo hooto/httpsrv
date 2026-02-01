@@ -15,6 +15,7 @@
 package httpsrv
 
 import (
+	"log/slog"
 	"net/http"
 	"path/filepath"
 	"sort"
@@ -68,7 +69,7 @@ func (it *rootRouter) add(pattern string, h *regHandler) {
 		if len(name) > 1 &&
 			name[0] == ':' {
 
-			patFields[i] = name[1:len(name)]
+			patFields[i] = name[1:]
 			patParams[i] = true
 
 		} else if len(name) > 2 &&
@@ -125,7 +126,9 @@ func (it *rootRouter) find(r *http.Request) (*regHandler, string, string) {
 
 		if len(ctx.hits[0].patParams) > 0 {
 			for _, i := range ctx.hits[0].patParams {
-				r.SetPathValue(ctx.hits[0].patFields[i], patFields[i])
+				if i < len(patFields) {
+					r.SetPathValue(ctx.hits[0].patFields[i], patFields[i])
+				}
 			}
 		}
 
@@ -201,7 +204,7 @@ func (it *routeNode) add(index int, patFields []string, patParams []bool,
 			}
 		}
 
-		defaultLogger.Infof("httpsrv: route depth %d, handler %s", node.patFieldN, h.info())
+		slog.Info("httpsrv route depth", "depth", node.patFieldN, "handler", h.info())
 	}
 
 	return node
@@ -246,24 +249,24 @@ func (it *routeNode) find(ctx *routeContext, nextFields []string) bool {
 			}
 		}
 
-		if false && nextFields[0] != "index" {
+		// if nextFields[0] != "index" {
 
-			if n, ok := it.stdNodes["index"]; ok &&
-				n.handler.handlerController != nil {
+		// 	if n, ok := it.stdNodes["index"]; ok &&
+		// 		n.handler.handlerController != nil {
 
-				if n.handler != nil {
-					ctx.hits = append(ctx.hits, n)
-				}
+		// 		if n.handler != nil {
+		// 			ctx.hits = append(ctx.hits, n)
+		// 		}
 
-				if len(nextFields) > 1 {
-					if n.find(ctx, nextFields[1:]) {
-						return true
-					}
-				} else if n.handler != nil {
-					return true
-				}
-			}
-		}
+		// 		if len(nextFields) > 1 {
+		// 			if n.find(ctx, nextFields[1:]) {
+		// 				return true
+		// 			}
+		// 		} else if n.handler != nil {
+		// 			return true
+		// 		}
+		// 	}
+		// }
 	}
 
 	return false

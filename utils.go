@@ -15,27 +15,25 @@
 package httpsrv
 
 import (
-	"bytes"
 	"encoding/json"
 	"hash/crc64"
-	"sync"
 )
 
-var bytesBufferPool = sync.Pool{
-	New: func() interface{} {
-		return &bytes.Buffer{}
-	},
-}
+// var bytesBufferPool = sync.Pool{
+// 	New: func() any {
+// 		return &bytes.Buffer{}
+// 	},
+// }
 
-func jsonEncode(v interface{}, indent string) ([]byte, error) {
+func jsonEncode(v any, indent string) ([]byte, error) {
 	if indent != "" {
 		return json.MarshalIndent(v, "", indent)
 	}
 	return json.Marshal(v)
 }
 
-func jsonDecode(src []byte, v interface{}) error {
-	return json.Unmarshal(src, &v)
+func jsonDecode(src []byte, v any) error {
+	return json.Unmarshal(src, v)
 }
 
 func isAlnum(v byte) bool {
