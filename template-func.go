@@ -57,7 +57,15 @@ var TemplateFuncs = map[string]interface{}{
 	},
 	// Perform a message look-up for the given locale and message using the given arguments
 	"T": func(lang map[string]interface{}, msg string, args ...interface{}) string {
-		return i18nTranslate(lang["LANG"].(string), msg, args...)
+		if lang == nil {
+			return i18nTranslate(i18nDefLocale, msg, args...)
+		}
+		if v, ok := lang["LANG"]; ok {
+			if langStr, ok := v.(string); ok && langStr != "" {
+				return i18nTranslate(langStr, msg, args...)
+			}
+		}
+		return i18nTranslate(i18nDefLocale, msg, args...)
 	},
 	// "set": func(renderArgs map[string]interface{}, key string, value interface{}) {
 	// 	renderArgs[key] = value

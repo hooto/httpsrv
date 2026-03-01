@@ -109,6 +109,11 @@ func i18nFsFileGetRead(path string) (string, error) {
 
 	path = "/" + strings.Trim(i18nRegPath.ReplaceAllString(path, "/"), "/")
 
+	// Prevent directory traversal attacks
+	if strings.Contains(path, "..") {
+		return "", errors.New("Invalid path: directory traversal not allowed")
+	}
+
 	i18nMut.Lock()
 	defer i18nMut.Unlock()
 

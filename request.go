@@ -74,7 +74,7 @@ func newRequest(r *http.Request) *Request {
 func (req *Request) RawBody() []byte {
 	if !req.bodyRead && req.Body != nil {
 		if _, err := io.Copy(&req.bodyBuffer, req.Body); err != nil {
-			//
+			req.bodyBuffer.Reset()
 		}
 		req.bodyRead = true
 	}

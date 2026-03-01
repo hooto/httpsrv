@@ -227,12 +227,11 @@ func (it *TemplateLoader) rawRender(wr io.Writer, txt string, arg interface{}) e
 	)
 
 	if itpl, ok := it.templateCache.Get(hkey); !ok {
-		if t, err := template.New("raw").Parse(txt); err != nil {
+		tpl = template.New("raw").Funcs(TemplateFuncs)
+		if _, err := tpl.Parse(txt); err != nil {
 			return err
-		} else {
-			tpl = t.Funcs(TemplateFuncs)
-			it.templateCache.Add(hkey, tpl)
 		}
+		it.templateCache.Add(hkey, tpl)
 	} else {
 		tpl = itpl.(*template.Template)
 	}

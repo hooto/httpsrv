@@ -109,7 +109,9 @@ func (it *rootRouter) find(r *http.Request) (*regHandler, string, string) {
 	)
 
 	it.mu.RLock()
-	it.node.find(ctx, patFields)
+	if it.node != nil {
+		it.node.find(ctx, patFields)
+	}
 	it.mu.RUnlock()
 
 	if len(ctx.hits) > 0 {
@@ -139,10 +141,12 @@ func (it *rootRouter) find(r *http.Request) (*regHandler, string, string) {
 		return ctx.hits[0].handler, urlPath, urlRoutePath
 	}
 
-	if n, ok := it.node.stdNodes[""]; ok &&
-		n.handler != nil &&
-		n.handler.handlerController != nil {
-		return n.handler, urlPath, urlRoutePath
+	if it.node != nil && it.node.stdNodes != nil {
+		if n, ok := it.node.stdNodes[""]; ok &&
+			n.handler != nil &&
+			n.handler.handlerController != nil {
+			return n.handler, urlPath, urlRoutePath
+		}
 	}
 
 	return defaultHandlers[0], urlPath, urlRoutePath

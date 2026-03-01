@@ -105,7 +105,7 @@ func (it *regHandler) handle(
 		ae   = r.Header.Get("Accept-Encoding")
 	)
 
-	if it.service.Config.CompressResponse && ae != "" {
+	if it.service != nil && it.service.Config.CompressResponse && ae != "" {
 		if strings.Contains(ae, "gzip") {
 			resp.compWriter, ae = gzip.NewWriter(resp.buf), "gzip"
 		} else if strings.Contains(ae, "br") {
@@ -145,7 +145,13 @@ func (it *regHandler) handle(
 		if !strings.HasPrefix(urlPath, it.pattern) {
 			return
 		}
-		subPath := urlPath[len(it.pattern)-1:]
+
+		// Safe slice: pattern length is guaranteed to be <= urlPath length due to HasPrefix check
+		patternLen := len(it.pattern)
+		if patternLen <= 0 || len(urlPath) < patternLen-1 {
+			return
+		}
+		subPath := urlPath[patternLen-1:]
 
 		// Prevent directory traversal attacks
 		if strings.Contains(subPath, "..") {
@@ -207,8 +213,10 @@ func (it *regHandler) handle(
 	req.urlPath = urlPath
 	req.urlRoutePath = urlRoutePath
 
-	for _, filter := range it.service.Filters {
-		filter(c)
+	if it.service != nil {
+		for _, filter := range it.service.Filters {
+			filter(c)
+		}
 	}
 
 	if handlerController != nil {
@@ -248,7 +256,9 @@ func (it *regHandler) handle(
 		c.Name = handlerController.Name
 		c.ActionName = handlerController.ActionName
 
-		c.Data["URL_MOD_PATH"] = it.service.Config.UrlBasePath + c.modPath
+		if it.service != nil {
+			c.Data["URL_MOD_PATH"] = it.service.Config.UrlBasePath + c.modPath
+		}
 
 		//
 		if execController.Type().IsVariadic() {

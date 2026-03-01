@@ -66,14 +66,13 @@ func (p *Params) SetValue(key, value string) {
 	if p.values == nil {
 		p.values = make(url.Values)
 	}
-	if p.values.Has(key) {
-		p.values[key] = append(p.values[key], value)
-	} else {
-		p.values[key] = []string{value}
-	}
+	p.values.Set(key, value)
 }
 
 func (p *Params) Value(key string) string {
+	if p.request == nil {
+		return ""
+	}
 	p.init()
 	if v := p.request.PathValue(key); v != "" {
 		return v

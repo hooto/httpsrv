@@ -70,15 +70,21 @@ func (c *Controller) RenderHTML(htm string) {
 		}
 	}()
 
-	err := c.service.TemplateLoader.rawRender(c.Response, htm, c.Data)
-	if err != nil {
-		c.Response.Header().Set("Content-Type", "text/html; charset=utf-8")
-		c.Response.Out.WriteHeader(http.StatusBadRequest)
-		c.Response.Out.Write([]byte("400 Bad Request"))
-		slog.Debug("http tpl render fail", "err", err.Error())
+	if c.service != nil && c.service.TemplateLoader != nil {
+		err := c.service.TemplateLoader.rawRender(c.Response, htm, c.Data)
+		if err != nil {
+			c.Response.Header().Set("Content-Type", "text/html; charset=utf-8")
+			c.Response.Out.WriteHeader(http.StatusBadRequest)
+			c.Response.Out.Write([]byte("400 Bad Request"))
+			slog.Debug("http tpl render fail", "err", err.Error())
+		} else {
+			c.Response.Header().Set("Content-Type", "text/html; charset=utf-8")
+			c.Response.WriteHeader(http.StatusOK)
+		}
 	} else {
 		c.Response.Header().Set("Content-Type", "text/html; charset=utf-8")
 		c.Response.WriteHeader(http.StatusOK)
+		c.Response.Write([]byte(htm))
 	}
 }
 
@@ -107,15 +113,21 @@ func (c *Controller) Render(args ...interface{}) {
 		}
 	}()
 
-	err := c.service.TemplateLoader.Render(c.Response, modPath, templatePath, c.Data)
-	if err != nil {
-		c.Response.Header().Set("Content-Type", "text/html; charset=utf-8")
-		c.Response.Out.WriteHeader(http.StatusBadRequest)
-		c.Response.Out.Write([]byte("400 Bad Request"))
-		slog.Debug("http tpl render fail", "modPath", modPath, "templatePath", templatePath, "err", err.Error())
+	if c.service != nil && c.service.TemplateLoader != nil {
+		err := c.service.TemplateLoader.Render(c.Response, modPath, templatePath, c.Data)
+		if err != nil {
+			c.Response.Header().Set("Content-Type", "text/html; charset=utf-8")
+			c.Response.Out.WriteHeader(http.StatusBadRequest)
+			c.Response.Out.Write([]byte("400 Bad Request"))
+			slog.Debug("http tpl render fail", "modPath", modPath, "templatePath", templatePath, "err", err.Error())
+		} else {
+			c.Response.Header().Set("Content-Type", "text/html; charset=utf-8")
+			c.Response.WriteHeader(http.StatusOK)
+		}
 	} else {
 		c.Response.Header().Set("Content-Type", "text/html; charset=utf-8")
-		c.Response.WriteHeader(http.StatusOK)
+		c.Response.WriteHeader(http.StatusNotFound)
+		c.Response.Out.Write([]byte("404 Template Not Found"))
 	}
 }
 
@@ -135,7 +147,7 @@ func (c *Controller) UrlBase(path string) string {
 		urlBase = "http://" + c.Request.Host
 	}
 
-	if c.service.Config.UrlBasePath != "" {
+	if c.service != nil && c.service.Config.UrlBasePath != "" {
 		urlBase += "/" + c.service.Config.UrlBasePath
 	}
 
@@ -164,7 +176,7 @@ func (c *Controller) Redirect(url string) {
 
 	if url[0] != '/' && !strings.HasPrefix(url, "http") {
 
-		if c.service.Config.UrlBasePath != "" {
+		if c.service != nil && c.service.Config.UrlBasePath != "" {
 			c.Response.Header().Set("Location", "/"+c.service.Config.UrlBasePath+"/"+url)
 		} else {
 			c.Response.Header().Set("Location", "/"+url)

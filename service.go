@@ -244,8 +244,6 @@ func (s *Service) Start(args ...interface{}) error {
 	//
 	if s.Config.HttpTimeout == 0 {
 		s.Config.HttpTimeout = 10
-	} else if s.Config.HttpTimeout < 1 {
-		s.Config.HttpTimeout = 1
 	} else if s.Config.HttpTimeout > 600 {
 		s.Config.HttpTimeout = 600
 	}
@@ -293,5 +291,8 @@ func (s *Service) Start(args ...interface{}) error {
 }
 
 func (s *Service) Stop() error {
+	if s.server != nil {
+		return s.server.Close()
+	}
 	return nil
 }
