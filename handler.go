@@ -29,16 +29,23 @@ import (
 	"github.com/andybalholm/brotli"
 )
 
+type ActionFunc func(ctx Ctx) error
+
+type handlerAction struct {
+	name string
+	fn   ActionFunc
+}
+
 type regHandler struct {
 	service *Service
 	method  string
 	pattern string
 
 	handlerFunc       func(w http.ResponseWriter, r *http.Request)
+	handlerAction     *handlerAction
 	handlerController *handlerController
 	handlerModuler    *handlerModuler
 	handlerFileServer *handlerFileServer
-	// handlerContext    func(ctx *Context) error
 }
 
 type handlerFileServer struct {
@@ -80,6 +87,8 @@ func (it *regHandler) info() string {
 	ar = append(ar, it.pattern)
 	if it.handlerFunc != nil {
 		ar = append(ar, "func")
+	} else if it.handlerAction != nil {
+		ar = append(ar, "action "+it.handlerAction.name)
 	} else if it.handlerController != nil {
 		ar = append(ar, "ctrl "+it.handlerController.Name+"/"+it.handlerController.ActionName)
 	} else if it.handlerFileServer != nil {
@@ -88,8 +97,6 @@ func (it *regHandler) info() string {
 		} else {
 			ar = append(ar, "fs ("+it.handlerFileServer.filepath+")")
 		}
-		// } else if it.handlerContext != nil {
-		// 	ar = append(ar, "ctx")
 	}
 	return strings.Join(ar, " ")
 }
@@ -194,20 +201,12 @@ func (it *regHandler) handle(
 		return
 	}
 
-	if it.handlerModuler == nil && it.handlerController == nil {
+	if it.handlerAction == nil && it.handlerModuler == nil && it.handlerController == nil {
 		http.NotFound(resp, r)
 		return
 	}
 
-	var (
-		c = newController(it.service, req, resp)
-
-		handlerController = it.handlerController
-	)
-
-	if handlerController == nil {
-		handlerController = it.handlerModuler.find(r)
-	}
+	var c = newController(it.service, req, resp)
 
 	req.Time = reqTime
 	req.urlPath = urlPath
@@ -217,6 +216,28 @@ func (it *regHandler) handle(
 		for _, filter := range it.service.Filters {
 			filter(c)
 		}
+	}
+
+	if it.handlerAction != nil {
+
+		c.Name = it.handlerAction.name
+		c.ActionName = it.handlerAction.name
+
+		if err := it.handlerAction.fn(&ctxImpl{c: c}); err != nil {
+			c.RenderError(http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		if c.AutoRender {
+			c.Render()
+		}
+
+		return
+	}
+
+	var handlerController = it.handlerController
+	if handlerController == nil {
+		handlerController = it.handlerModuler.find(r)
 	}
 
 	if handlerController != nil {
@@ -233,7 +254,6 @@ func (it *regHandler) handle(
 
 		appController := appControllerPtr.Interface()
 
-		//
 		execController := reflect.ValueOf(appController).MethodByName("Init")
 		if execController.Kind() != reflect.Invalid {
 			if iv := execController.Call(genArgs)[0]; iv.Kind() == reflect.Int {
@@ -243,7 +263,6 @@ func (it *regHandler) handle(
 			}
 		}
 
-		//
 		execController = reflect.ValueOf(appController).MethodByName(handlerController.ActionName + "Action")
 		if execController.Kind() == reflect.Invalid && handlerController.ActionName != "Index" {
 			execController = reflect.ValueOf(appController).MethodByName("IndexAction")
@@ -260,23 +279,16 @@ func (it *regHandler) handle(
 			c.Data["URL_MOD_PATH"] = it.service.Config.UrlBasePath + c.modPath
 		}
 
-		//
 		if execController.Type().IsVariadic() {
 			execController.CallSlice(genArgs)
 		} else {
 			execController.Call(genArgs)
 		}
-
-		// } else if it.handlerContext != nil {
-		// 	it.handlerContext(&Context{
-		// 		c: c,
-		// 	})
 	}
 
 	if c.AutoRender {
 		c.Render()
 	}
-
 }
 
 func (it *handlerModuler) find(r *http.Request) *handlerController {
@@ -295,12 +307,3 @@ func (it *handlerModuler) find(r *http.Request) *handlerController {
 	}
 	return nil
 }
-
-// func handlerPathSlice(path string) (string, []string) {
-// 	path = strings.Replace(filepath.Clean(path), " ", "", -1)
-// 	if runtime.GOOS == "windows" {
-// 		path = strings.Replace(path, "\\", "/", -1)
-// 	}
-// 	path = strings.Trim(path, "/")
-// 	return "/" + path, strings.Split(path, "/")
-// }

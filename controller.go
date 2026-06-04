@@ -269,21 +269,21 @@ func findControllers(appControllerType reflect.Type) (indexes [][]int) {
 }
 
 func controllerActionPattern(ctrlName, actionName string) string {
+	return camelToKebab("/" + ctrlName + "/" + actionName)
+}
 
-	var (
-		v  = "/" + ctrlName + "/" + actionName
-		b1 = []byte(v)
-		b2 []byte
-	)
-	for i, v := range b1 {
+func camelToKebab(s string) string {
+	b := []byte(s)
+	var buf []byte
+	for i, v := range b {
 		if isUpper(v) {
-			if i > 0 && !isUpper(b1[i-1]) && isAlnum(b1[i-1]) {
-				b2 = append(b2, '-')
+			if i > 0 && !isUpper(b[i-1]) && isAlnum(b[i-1]) {
+				buf = append(buf, '-')
 			}
-			b2 = append(b2, 'a'+(v-'A'))
+			buf = append(buf, 'a'+(v-'A'))
 		} else {
-			b2 = append(b2, v)
+			buf = append(buf, v)
 		}
 	}
-	return string(b2)
+	return string(buf)
 }

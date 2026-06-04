@@ -85,26 +85,6 @@ func (s *Service) regHandler(h *regHandler) {
 	s.handlers = append(s.handlers, h)
 }
 
-/**
-func (s *Service) HandleHttp(method, pattern string, fn func(ctx *Context) error) {
-	if fn == nil {
-		return
-	}
-	method = strings.ToUpper(method)
-	switch method {
-	case "GET", "POST", "PUT", "DELETE":
-		//
-	default:
-		method = ""
-	}
-	s.regHandler(&regHandler{
-		method:         method,
-		pattern:        pattern,
-		handlerContext: fn,
-	})
-}
-*/
-
 func (s *Service) HandleFunc(pattern string, h func(w http.ResponseWriter, r *http.Request)) {
 	s.regHandler(&regHandler{
 		pattern:     pattern,
@@ -135,6 +115,13 @@ func (s *Service) HandleModule(pattern string, mod *Module) {
 			})
 			//
 			modr.actions[h.pattern] = h.handlerController
+
+		} else if h.handlerAction != nil {
+			//
+			s.regHandler(&regHandler{
+				pattern:       filepath.Clean(mod1.Path + "/" + h.pattern),
+				handlerAction: h.handlerAction,
+			})
 
 		} else if h.handlerFileServer != nil {
 			//

@@ -16,6 +16,7 @@ package httpsrv
 
 import (
 	"bytes"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -274,5 +275,182 @@ func TestCompressResponseDisabled(t *testing.T) {
 	}
 	if !bytes.Contains(rec.Body.Bytes(), []byte(body)) {
 		t.Error("response body should contain uncompressed content")
+	}
+}
+
+// -- ActionFunc tests --
+
+func sampleActionOk(ctx Ctx) error {
+	return ctx.Send([]byte("hello from action"))
+}
+
+func sampleActionError(ctx Ctx) error {
+	return fmt.Errorf("something went wrong")
+}
+
+func sampleActionJson(ctx Ctx) error {
+	return ctx.JSON(map[string]string{"status": "ok"})
+}
+
+func TestActionFuncDispatch(t *testing.T) {
+	srv := NewService()
+
+	srv.regHandler(&regHandler{
+		pattern: "/test/action-ok",
+		handlerAction: &handlerAction{
+			name: "ActionOk",
+			fn:   sampleActionOk,
+		},
+	})
+
+	lastHandler := srv.handlers[len(srv.handlers)-1]
+	srv.router.add(lastHandler.pattern, lastHandler)
+
+	req := httptest.NewRequest("GET", "/test/action-ok/", nil)
+	rec := httptest.NewRecorder()
+
+	h, urlPath, _ := srv.router.find(req)
+	h.handle(rec, req, urlPath, urlPath, time.Now())
+
+	if !bytes.Contains(rec.Body.Bytes(), []byte("hello from action")) {
+		t.Errorf("expected body to contain 'hello from action', got %q", rec.Body.String())
+	}
+}
+
+func TestActionFuncDispatchError(t *testing.T) {
+	srv := NewService()
+
+	srv.regHandler(&regHandler{
+		pattern: "/test/action-err",
+		handlerAction: &handlerAction{
+			name: "ActionError",
+			fn:   sampleActionError,
+		},
+	})
+
+	lastHandler := srv.handlers[len(srv.handlers)-1]
+	srv.router.add(lastHandler.pattern, lastHandler)
+
+	req := httptest.NewRequest("GET", "/test/action-err/", nil)
+	rec := httptest.NewRecorder()
+
+	h, urlPath, _ := srv.router.find(req)
+	h.handle(rec, req, urlPath, urlPath, time.Now())
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("expected status 500, got %d", rec.Code)
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte("something went wrong")) {
+		t.Errorf("expected body to contain error message, got %q", rec.Body.String())
+	}
+}
+
+func TestActionFuncDispatchJson(t *testing.T) {
+	srv := NewService()
+
+	srv.regHandler(&regHandler{
+		pattern: "/test/action-json",
+		handlerAction: &handlerAction{
+			name: "ActionJson",
+			fn:   sampleActionJson,
+		},
+	})
+
+	lastHandler := srv.handlers[len(srv.handlers)-1]
+	srv.router.add(lastHandler.pattern, lastHandler)
+
+	req := httptest.NewRequest("GET", "/test/action-json/", nil)
+	rec := httptest.NewRecorder()
+
+	h, urlPath, _ := srv.router.find(req)
+	h.handle(rec, req, urlPath, urlPath, time.Now())
+
+	ct := rec.Header().Get("Content-Type")
+	if ct != "application/json" {
+		t.Errorf("expected application/json, got %q", ct)
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte(`"status":"ok"`)) {
+		t.Errorf("expected json body, got %q", rec.Body.String())
+	}
+}
+
+func TestActionFuncFiltersRun(t *testing.T) {
+	srv := NewService()
+
+	filterCalled := false
+	srv.Filters = append(srv.Filters, func(c *Controller) {
+		filterCalled = true
+	})
+
+	srv.regHandler(&regHandler{
+		pattern: "/test/filter",
+		handlerAction: &handlerAction{
+			name: "Filter",
+			fn: func(ctx Ctx) error {
+				return ctx.Send([]byte("ok"))
+			},
+		},
+	})
+
+	lastHandler := srv.handlers[len(srv.handlers)-1]
+	srv.router.add(lastHandler.pattern, lastHandler)
+
+	req := httptest.NewRequest("GET", "/test/filter/", nil)
+	rec := httptest.NewRecorder()
+
+	h, urlPath, _ := srv.router.find(req)
+	h.handle(rec, req, urlPath, urlPath, time.Now())
+
+	if !filterCalled {
+		t.Error("expected filter to be called for ActionFunc")
+	}
+}
+
+func TestActionFuncViaModule(t *testing.T) {
+	mod := NewModule()
+	mod.RegisterAction("/api/action-ok", sampleActionOk)
+	mod.RegisterAction("/api/action-json", sampleActionJson)
+
+	srv := NewService()
+	srv.HandleModule("/v1", mod)
+
+	for _, h := range srv.handlers {
+		srv.router.add(h.pattern, h)
+	}
+
+	tests := []struct {
+		path     string
+		wantBody string
+	}{
+		{"/v1/api/action-ok/", "hello from action"},
+		{"/v1/api/action-json/", `"status":"ok"`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			req := httptest.NewRequest("GET", tt.path, nil)
+			rec := httptest.NewRecorder()
+
+			h, urlPath, _ := srv.router.find(req)
+			h.handle(rec, req, urlPath, urlPath, time.Now())
+
+			if !bytes.Contains(rec.Body.Bytes(), []byte(tt.wantBody)) {
+				t.Errorf("expected body to contain %q, got %q", tt.wantBody, rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestHandlerInfoAction(t *testing.T) {
+	h := &regHandler{
+		pattern: "/test",
+		handlerAction: &handlerAction{
+			name: "ListUsers",
+			fn:   func(ctx Ctx) error { return nil },
+		},
+	}
+	expected := "/test action ListUsers"
+	if got := h.info(); got != expected {
+		t.Errorf("expected %q, got %q", expected, got)
 	}
 }

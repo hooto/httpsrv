@@ -116,6 +116,23 @@ func (m *Module) RegisterController(args ...interface{}) {
 	}
 }
 
+func (m *Module) RegisterAction(pattern string, fn ActionFunc) {
+	if fn == nil {
+		return
+	}
+	pattern = filepath.Clean("/" + pattern)
+	name := pattern[strings.LastIndex(pattern, "/")+1:]
+	h := &regHandler{
+		pattern: pattern,
+		handlerAction: &handlerAction{
+			name: name,
+			fn:   fn,
+		},
+	}
+	m.handlers = append(m.handlers, h)
+	m.idxHandlers[h.pattern] = h
+}
+
 func (m *Module) registerController(c interface{}) {
 
 	if c == nil {
