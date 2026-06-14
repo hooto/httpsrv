@@ -223,6 +223,7 @@ func (it *regHandler) handle(
 		c.Name = it.handlerAction.name
 		c.ActionName = it.handlerAction.name
 
+		c.AutoRender = false
 		if err := it.handlerAction.fn(&ctxImpl{c: c}); err != nil {
 			c.RenderError(http.StatusInternalServerError, err.Error())
 			return
