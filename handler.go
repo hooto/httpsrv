@@ -149,16 +149,21 @@ func (it *regHandler) handle(
 
 	if it.handlerFileServer != nil {
 
+		// urlPath = filepath.Clean(urlPath)
+
 		if !strings.HasPrefix(urlPath, it.pattern) {
 			return
 		}
 
 		// Safe slice: pattern length is guaranteed to be <= urlPath length due to HasPrefix check
 		patternLen := len(it.pattern)
-		if patternLen <= 0 || len(urlPath) < patternLen-1 {
+		if patternLen <= 0 || len(urlPath) < patternLen {
 			return
 		}
-		subPath := urlPath[patternLen-1:]
+		subPath := urlPath[patternLen:]
+		if subPath == "" {
+			subPath = "/"
+		}
 
 		// Prevent directory traversal attacks
 		if strings.Contains(subPath, "..") {
@@ -257,16 +262,19 @@ func (it *regHandler) handle(
 
 		execController := reflect.ValueOf(appController).MethodByName("Init")
 		if execController.Kind() != reflect.Invalid {
-			if iv := execController.Call(genArgs)[0]; iv.Kind() == reflect.Int {
-				if iv.Int() != 0 {
+			results := execController.Call(genArgs)
+			if len(results) > 0 && results[0].Kind() == reflect.Int {
+				if results[0].Int() != 0 {
 					return
 				}
 			}
 		}
 
 		execController = reflect.ValueOf(appController).MethodByName(handlerController.ActionName + "Action")
-		if execController.Kind() == reflect.Invalid && handlerController.ActionName != "Index" {
-			execController = reflect.ValueOf(appController).MethodByName("IndexAction")
+		if execController.Kind() == reflect.Invalid {
+			if handlerController.ActionName != "Index" {
+				execController = reflect.ValueOf(appController).MethodByName("IndexAction")
+			}
 			if execController.Kind() == reflect.Invalid {
 				return
 			}

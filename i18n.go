@@ -114,9 +114,6 @@ func i18nFsFileGetRead(path string) (string, error) {
 		return "", errors.New("Invalid path: directory traversal not allowed")
 	}
 
-	i18nMut.Lock()
-	defer i18nMut.Unlock()
-
 	if st, err := os.Stat(path); err != nil {
 		return "", err
 	} else if st.Size() > (10 << 20) {

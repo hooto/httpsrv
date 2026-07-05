@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -438,6 +439,101 @@ func TestActionFuncViaModule(t *testing.T) {
 				t.Errorf("expected body to contain %q, got %q", tt.wantBody, rec.Body.String())
 			}
 		})
+	}
+}
+
+// TestControllerUrlBase verifies that UrlBase produces correct paths
+// without double slashes, including when UrlBasePath is set.
+func TestControllerUrlBase(t *testing.T) {
+	srv := NewService()
+
+	// httptest.NewRequest uses "example.com" as the default Host
+	const host = "http://example.com"
+	tests := []struct {
+		name       string
+		basePath   string
+		path       string
+		wantSuffix string
+	}{
+		{"no_basepath", "", "/path", host + "/path"},
+		{"with_basepath", "app", "/path", host + "/app/path"},
+		{"basepath_with_slash", "/app", "/path", host + "/app/path"},
+		{"empty_path", "app", "", host + "/app"},
+		{"path_no_leading_slash", "app", "sub", host + "/app/sub"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv.Config.UrlBasePath = tt.basePath
+			req := httptest.NewRequest("GET", "/", nil)
+			c := newController(srv, newRequest(req), newResponse(httptest.NewRecorder()))
+			got := c.UrlBase(tt.path)
+			if got != tt.wantSuffix {
+				t.Errorf("got %q, want %q", got, tt.wantSuffix)
+			}
+		})
+	}
+}
+
+// TestControllerRedirectNoDoubleSlash verifies Redirect does not produce
+// URLs with double slashes when UrlBasePath is set.
+func TestControllerRedirectNoDoubleSlash(t *testing.T) {
+	srv := NewService()
+	srv.Config.UrlBasePath = "app"
+
+	req := httptest.NewRequest("GET", "/", nil)
+	rec := httptest.NewRecorder()
+	c := newController(srv, newRequest(req), newResponse(rec))
+
+	c.Redirect("login")
+
+	loc := rec.Header().Get("Location")
+	if loc != "/app/login" {
+		t.Errorf("expected /app/login, got %q", loc)
+	}
+}
+
+// VoidInitController verifies that a controller whose Init() method
+// returns no values does not cause a panic.
+type VoidInitController struct {
+	*Controller
+}
+
+func (c *VoidInitController) Init() {
+}
+
+func (c *VoidInitController) IndexAction() {
+	c.RenderString("inited")
+}
+
+func TestControllerVoidInit(t *testing.T) {
+	srv := NewService()
+
+	hc := &handlerController{
+		Name:        "VoidInit",
+		ActionName:  "Index",
+		ctrlType:    reflect.TypeOf(&VoidInitController{}).Elem(),
+		ctrlIndexes: findControllers(reflect.TypeOf(&VoidInitController{}).Elem()),
+	}
+
+	h := &regHandler{
+		pattern:           "/void-init/index/",
+		handlerController: hc,
+		service:           srv,
+	}
+	srv.router.add(h.pattern, h)
+
+	req := httptest.NewRequest("GET", "/void-init/index/", nil)
+	rec := httptest.NewRecorder()
+
+	foundHandler, urlPath, _ := srv.router.find(req)
+	if foundHandler == nil {
+		t.Fatal("handler not found")
+	}
+	foundHandler.handle(rec, req, urlPath, urlPath, time.Now())
+
+	if !bytes.Contains(rec.Body.Bytes(), []byte("inited")) {
+		t.Errorf("expected body to contain 'inited', got %q", rec.Body.String())
 	}
 }
 

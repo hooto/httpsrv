@@ -217,6 +217,32 @@ func TestRouterCleanPath(t *testing.T) {
 	}
 }
 
+// TestRouterFindWithParamsCasePreserved verifies that path parameter values
+// are stored with their original case (not lowercased during route matching).
+func TestRouterFindWithParamsCasePreserved(t *testing.T) {
+	router := &rootRouter{}
+
+	h := &regHandler{
+		pattern: "/users/:id",
+		handlerFunc: func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte("user"))
+		},
+	}
+	router.add("/users/:id", h)
+
+	req := httptest.NewRequest("GET", "/users/JohnDoe123", nil)
+	foundHandler, _, _ := router.find(req)
+
+	if foundHandler == nil {
+		t.Fatal("handler should be found")
+	}
+
+	id := req.PathValue("id")
+	if id != "JohnDoe123" {
+		t.Errorf("expected path value 'JohnDoe123' (case preserved), got %q", id)
+	}
+}
+
 func TestRouterCaseInsensitive(t *testing.T) {
 	router := &rootRouter{}
 

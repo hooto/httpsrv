@@ -105,6 +105,7 @@ func (it *rootRouter) find(r *http.Request) (*regHandler, string, string) {
 		urlPath      = filepath.Clean("/" + r.URL.Path)
 		urlRoutePath = urlPath
 		rawPath      = strings.Trim(urlPath, "/")
+		rawFields    = strings.Split(rawPath, "/")
 		patFields    = strings.Split(strings.ToLower(rawPath), "/")
 	)
 
@@ -128,8 +129,8 @@ func (it *rootRouter) find(r *http.Request) (*regHandler, string, string) {
 
 		if len(ctx.hits[0].patParams) > 0 {
 			for _, i := range ctx.hits[0].patParams {
-				if i < len(patFields) {
-					r.SetPathValue(ctx.hits[0].patFields[i], patFields[i])
+				if i < len(rawFields) {
+					r.SetPathValue(ctx.hits[0].patFields[i], rawFields[i])
 				}
 			}
 		}

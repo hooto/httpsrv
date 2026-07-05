@@ -17,7 +17,7 @@ package httpsrv
 import (
 	"log/slog"
 	"net/http"
-	"path/filepath"
+	stdpath "path"
 	"reflect"
 	"strings"
 )
@@ -147,42 +147,40 @@ func (c *Controller) UrlBase(path string) string {
 		urlBase = "http://" + c.Request.Host
 	}
 
+	var elems = []string{"/"}
 	if c.service != nil && c.service.Config.UrlBasePath != "" {
-		urlBase += "/" + c.service.Config.UrlBasePath
+		elems = append(elems, c.service.Config.UrlBasePath)
 	}
-
-	if len(path) > 0 {
-		path = filepath.Clean(path)
-	}
-
 	if path != "" {
-		urlBase += "/" + path
+		elems = append(elems, path)
 	}
 
-	return urlBase
+	return urlBase + stdpath.Join(elems...)
 }
 
 func (c *Controller) UrlModuleBase(path string) string {
 	return c.UrlBase(c.modPath + "/" + path)
 }
 
-func (c *Controller) Redirect(url string) {
+func (c *Controller) Redirect(location string) {
 
 	c.AutoRender = false
 
-	if len(url) == 0 {
+	if len(location) == 0 {
 		return
 	}
 
-	if url[0] != '/' && !strings.HasPrefix(url, "http") {
+	if location[0] != '/' && !strings.HasPrefix(location, "http") {
 
+		var elems = []string{"/"}
 		if c.service != nil && c.service.Config.UrlBasePath != "" {
-			c.Response.Header().Set("Location", "/"+c.service.Config.UrlBasePath+"/"+url)
-		} else {
-			c.Response.Header().Set("Location", "/"+url)
+			elems = append(elems, c.service.Config.UrlBasePath)
 		}
+		elems = append(elems, location)
+
+		c.Response.Header().Set("Location", stdpath.Join(elems...))
 	} else {
-		c.Response.Header().Set("Location", url)
+		c.Response.Header().Set("Location", location)
 	}
 
 	c.Response.WriteHeader(http.StatusFound)

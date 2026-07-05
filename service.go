@@ -71,9 +71,9 @@ func (s *Service) regHandler(h *regHandler) {
 	h.service = s
 	h.pattern = filepath.Clean("/" + h.pattern)
 
-	if !strings.HasSuffix(h.pattern, "/") {
-		h.pattern += "/"
-	}
+	// if !strings.HasSuffix(h.pattern, "/") {
+	// 	h.pattern += "/"
+	// }
 
 	for i, v := range s.handlers {
 		if v.pattern == h.pattern {
@@ -130,6 +130,7 @@ func (s *Service) HandleModule(pattern string, mod *Module) {
 				pattern:           filepath.Clean(mod1.Path + "/" + h.pattern),
 				handlerFileServer: h.handlerFileServer,
 			})
+			// slog.Info("s.regHandler : " + filepath.Clean(mod1.Path+"/"+h.pattern))
 		}
 	}
 
@@ -167,6 +168,7 @@ func (s *Service) HandleModule(pattern string, mod *Module) {
 
 	for i, pmod := range s.modules {
 		if pmod.Path == mod1.Path {
+			// slog.Info("router/find", "urlRoutePath", urlRoutePath)
 			s.modules[i] = mod1
 			mod1 = nil
 			break
@@ -206,26 +208,36 @@ func (s *Service) Start(args ...interface{}) error {
 		localAddr += fmt.Sprintf(":%d", s.Config.HttpPort)
 	}
 
-	if len(args) > 0 {
-		for _, arg := range args {
-			switch arg := arg.(type) {
-			case string:
-				if host, port, err := net.SplitHostPort(arg); err == nil {
-					localAddr = host + ":" + port
-				}
+	var listener net.Listener
+	var err error
+
+	for _, arg := range args {
+		if arg == nil {
+			continue
+		}
+		switch v := arg.(type) {
+		case string:
+			if host, port, err := net.SplitHostPort(v); err == nil {
+				localAddr = host + ":" + port
 			}
+
+		case net.Listener:
+			listener = v
+			slog.Info("httpsrv start", "network", "listener")
 		}
 	}
 
-	if network != "unix" && network != "tcp" {
-		slog.Error("httpsrv unknown network", "network", network)
-		return errors.New("invalid network " + network)
-	}
+	if listener == nil {
+		if network != "unix" && network != "tcp" {
+			slog.Error("httpsrv unknown network", "network", network)
+			return errors.New("invalid network " + network)
+		}
 
-	//
-	if network == "unix" {
-		// TODO already in use
-		os.Remove(localAddr)
+		//
+		if network == "unix" {
+			// TODO already in use
+			os.Remove(localAddr)
+		}
 	}
 
 	//
@@ -257,16 +269,17 @@ func (s *Service) Start(args ...interface{}) error {
 		Handler:        &rootHandler{s},
 	}
 
-	//
-	listener, err := net.Listen(network, localAddr)
-	if err != nil {
-		slog.Error("httpsrv net listen error", "err", err)
-		return err
-	}
-	slog.Info("httpsrv listening", "network", network, "address", localAddr)
+	if listener == nil {
+		listener, err = net.Listen(network, localAddr)
+		if err != nil {
+			slog.Error("httpsrv net listen error", "err", err)
+			return err
+		}
+		slog.Info("httpsrv listening", "network", network, "address", localAddr)
 
-	if network == "unix" {
-		os.Chmod(localAddr, 0770)
+		if network == "unix" {
+			os.Chmod(localAddr, 0770)
+		}
 	}
 
 	//
