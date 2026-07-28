@@ -12,118 +12,153 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// i18n — an opt-in module. Not loaded unless attached via WithI18n and/or its
+// Funcs() passed to a Renderer. The message structure is the simplest common
+// shape: locale -> key -> text (no singular/plural distinction).
+
 package httpsrv
 
 import (
-	"errors"
+	"context"
+	"encoding/json"
 	"fmt"
-	"log/slog"
-	"os"
-	"regexp"
+	"html/template"
+	"net/http"
 	"strings"
 	"sync"
+
+	"golang.org/x/text/language"
 )
 
-var (
-	i18nMut       sync.RWMutex
-	i18n          = map[string]string{}
-	i18nDefLocale = "en"
-	i18nRegPath   = regexp.MustCompile("/+")
-)
-
-type i18nConfig struct {
-	Locale string `json:"locale" toml:"locale"`
-	Data   []i18nConfigItem
+// I18n is a locale message store: locale -> key -> text. Construct with
+// NewI18n, add messages with Add/Set/LoadJSON, and read with Translate. For use
+// in templates, pass i.Funcs() to TemplatesFS/TemplatesDir; for use in
+// handlers, attach to the App with WithI18n (then Ctx.Translate / Ctx.Locale).
+//
+// Locale keys are matched case-insensitively. Messages are flat key -> text
+// (no plural forms). No date/number/currency/timezone formatting is included.
+type I18n struct {
+	def string
+	mu  sync.RWMutex
+	msg map[string]map[string]string // locale -> key -> text
 }
 
-type i18nConfigItem struct {
-	Key string `json:"key" toml:"key"`
-	Val string `json:"val" toml:"val"`
+// NewI18n creates an i18n store; defaultLocale is the fallback for lookups whose
+// locale is empty or has no entry (defaults to "en").
+func NewI18n(defaultLocale string) *I18n {
+	if defaultLocale == "" {
+		defaultLocale = "en"
+	}
+	return &I18n{def: defaultLocale, msg: map[string]map[string]string{}}
 }
 
-func I18nFilter(c *Controller) {
+// Default returns the configured default locale.
+func (i *I18n) Default() string { return i.def }
 
-	if v, e := c.Request.Cookie(c.service.Config.CookieKeyLocale); e == nil {
-		c.Request.Locale = v.Value
-	} else if len(c.Request.acceptLanguage) > 0 {
-		c.Request.Locale = c.Request.acceptLanguage[0].Language
-	} else {
-		c.Request.Locale = i18nDefLocale
+// Add merges flat {key: text} entries into locale.
+func (i *I18n) Add(locale string, msgs map[string]string) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	for k, v := range msgs {
+		i.setLocked(locale, k, v)
 	}
-
-	c.Data["LANG"] = c.Request.Locale
 }
 
-func i18nLoadMessages(file string) {
+// Set sets a single key's text for locale.
+func (i *I18n) Set(locale, key, text string) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.setLocked(locale, key, text)
+}
 
-	i18nMut.Lock()
-	defer i18nMut.Unlock()
-
-	var cfg i18nConfig
-
-	str, err := i18nFsFileGetRead(file)
-	if err != nil {
-		slog.Warn("httpsrv/lang load file err", "file", file, "err", err.Error())
-		return
+// LoadJSON loads flat {"key": "text"} messages from JSON into locale.
+func (i *I18n) LoadJSON(locale string, data []byte) error {
+	var m map[string]string
+	if err := json.Unmarshal(data, &m); err != nil {
+		return err
 	}
+	i.Add(locale, m)
+	return nil
+}
 
-	if err := jsonDecode([]byte(str), &cfg); err != nil {
-		slog.Warn("httpsrv/lang setup err", "err", err.Error())
-		return
+func (i *I18n) setLocked(locale, key, text string) {
+	locale = strings.ToLower(locale)
+	if i.msg[locale] == nil {
+		i.msg[locale] = map[string]string{}
 	}
+	i.msg[locale][key] = text
+}
 
-	cfg.Locale = strings.Replace(cfg.Locale, "_", "-", 1)
+// Translate returns the text for key in locale (locale -> default -> key
+// fallback), formatted via fmt.Sprintf when args are given.
+func (i *I18n) Translate(locale, key string, args ...any) string {
+	text := i.lookup(locale, key)
+	if len(args) == 0 {
+		return text
+	}
+	return fmt.Sprintf(text, args...)
+}
 
-	for _, v := range cfg.Data {
-
-		key := strings.ToLower(cfg.Locale + "." + v.Key)
-
-		if v2, ok := i18n[key]; !ok || v2 != v.Val {
-			i18n[key] = v.Val
+// lookup finds text for key in locale, falling back to the default locale, then
+// to the key itself.
+func (i *I18n) lookup(locale, key string) string {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	if v := i.msg[strings.ToLower(locale)][key]; v != "" {
+		return v
+	}
+	if lc := strings.ToLower(locale); lc != strings.ToLower(i.def) {
+		if v := i.msg[strings.ToLower(i.def)][key]; v != "" {
+			return v
 		}
 	}
+	return key
 }
 
-func i18nTranslate(locale, msg string, args ...interface{}) string {
-
-	key := strings.ToLower(locale + "." + msg)
-	keydef := strings.ToLower(i18nDefLocale + "." + msg)
-
-	i18nMut.RLock()
-
-	if v, ok := i18n[key]; ok {
-		msg = v
-	} else if v, ok := i18n[keydef]; ok {
-		msg = v
+// Funcs returns the template function (T) bound to this store, for passing to
+// TemplatesFS/TemplatesDir as extraFuncs when i18n is wanted in templates.
+func (i *I18n) Funcs() template.FuncMap {
+	return template.FuncMap{
+		"T": func(locale, key string, args ...any) string { return i.Translate(locale, key, args...) },
 	}
-
-	i18nMut.RUnlock()
-
-	if len(args) > 0 {
-		return fmt.Sprintf(msg, args...)
-	}
-	return msg
 }
 
-func i18nFsFileGetRead(path string) (string, error) {
+// localeCtxKey is the request-context key for the locale set by AcceptLanguage.
+type localeCtxKey struct{}
 
-	path = "/" + strings.Trim(i18nRegPath.ReplaceAllString(path, "/"), "/")
-
-	// Prevent directory traversal attacks
-	if strings.Contains(path, "..") {
-		return "", errors.New("Invalid path: directory traversal not allowed")
+// AcceptLanguage returns middleware that detects the request locale from the
+// Accept-Language header and stores it in the request context (readable via
+// Ctx.Locale). def is the default/fallback; others are additional supported
+// locales. Matching uses golang.org/x/text/language (BCP-47), so an "en-US"
+// request matches a supported "en", and "zh-Hans" matches "zh".
+//
+// Register it with Use, e.g. app.Use(httpsrv.AcceptLanguage("en", "zh", "ja")).
+func AcceptLanguage(def string, others ...string) Handler {
+	supported := append([]string{def}, others...)
+	tags := make([]language.Tag, len(supported))
+	for i, s := range supported {
+		t, err := language.Parse(s)
+		if err != nil {
+			panic("httpsrv: invalid locale " + s + ": " + err.Error())
+		}
+		tags[i] = t
 	}
-
-	if st, err := os.Stat(path); err != nil {
-		return "", err
-	} else if st.Size() > (10 << 20) {
-		return "", errors.New("File size is too large")
+	matcher := language.NewMatcher(tags) // tags[0] (def) is the default
+	return func(c Ctx) error {
+		r := c.Request()
+		accepted, _, _ := language.ParseAcceptLanguage(r.Header.Get("Accept-Language"))
+		_, idx, _ := matcher.Match(accepted...)
+		loc := supported[idx]
+		ctx := context.WithValue(r.Context(), localeCtxKey{}, loc)
+		c.(*ctxImpl).r = r.WithContext(ctx)
+		return c.Next()
 	}
+}
 
-	ctn, err := os.ReadFile(path)
-	if err != nil {
-		return "", errors.New("File Can Not Readable")
+// localeFromRequest returns the locale stored by AcceptLanguage, or "".
+func localeFromRequest(r *http.Request) string {
+	if v, ok := r.Context().Value(localeCtxKey{}).(string); ok {
+		return v
 	}
-
-	return string(ctn), nil
+	return ""
 }

@@ -14,42 +14,64 @@
 
 package httpsrv
 
-const Version = "0.12.0"
+import "time"
 
+// Version is the library version.
+const Version = "2.0.0-beta.1"
+
+// Config holds server settings, applied at construction via WithConfig. Zero
+// fields keep the defaults set in New.
 type Config struct {
-	// e.g. "127.0.0.1", "unix:/tmp/app.sock"
-	HttpAddr string `json:"http_addr,omitempty" toml:"http_addr,omitempty"`
+	// Addr is the listen address (default ":8080"; a string passed to Run
+	// overrides it).
+	Addr string
 
-	// e.g. 8080
-	HttpPort uint16 `json:"http_port,omitempty" toml:"http_port,omitempty"`
+	// Timeouts; defaults are Read/Write 60s, ReadHeader 10s. Set WriteTimeout
+	// to a large value (or use streaming) for long responses.
+	ReadTimeout       time.Duration
+	WriteTimeout      time.Duration
+	ReadHeaderTimeout time.Duration
 
-	HttpTimeout uint16 `json:"http_timeout,omitempty" toml:"http_timeout,omitempty"`
+	// MaxHeaderBytes caps request header size (default 1 MiB).
+	MaxHeaderBytes int
 
-	UrlBasePath string `json:"url_base_path,omitempty" toml:"url_base_path,omitempty"`
-
-	CookieKeyLocale  string `json:"cookie_key_locale,omitempty" toml:"cookie_key_locale,omitempty"`
-	CookieKeySession string `json:"cookie_key_session,omitempty" toml:"cookie_key_session,omitempty"`
-
-	CompressResponse bool `json:"compress_response,omitempty" toml:"compress_response,omitempty"`
+	// Views is the interface that wraps the Render function. Set it to a
+	// template engine (e.g. a *Renderer from TemplatesDir/TemplatesFS) so
+	// Handler code can call Ctx.Render. A custom engine implementing Views may
+	// be plugged in here directly. Equivalent to WithViews.
+	//
+	// Default: nil
+	Views Views `json:"-"`
 }
 
-var DefaultConfig = Config{
-
-	HttpAddr: "0.0.0.0",
-	HttpPort: 8080,
-
-	HttpTimeout: 30, // 30 seconds
-
-	CookieKeyLocale:  "lang",
-	CookieKeySession: "access_token",
-}
-
-func (c *Config) RegisterTemplateFunc(name string, fn interface{}) {
-	tplMut.Lock()
-	defer tplMut.Unlock()
-	TemplateFuncs[name] = fn
-}
-
-func (c *Config) I18n(file string) {
-	i18nLoadMessages(file)
+// WithConfig applies server settings from cfg. Only non-zero fields override the
+// defaults. Example:
+//
+//	app := httpsrv.New(httpsrv.WithConfig(httpsrv.Config{
+//	    Addr:        ":3000",
+//	    ReadTimeout: 30 * time.Second,
+//	}))
+func WithConfig(cfg Config) Option {
+	return func(a *app) {
+		if cfg.Addr != "" {
+			a.addr = cfg.Addr
+		}
+		if cfg.ReadTimeout != 0 {
+			a.readTimeout = cfg.ReadTimeout
+		}
+		if cfg.WriteTimeout != 0 {
+			a.writeTimeout = cfg.WriteTimeout
+		}
+		if cfg.ReadHeaderTimeout != 0 {
+			a.readHeaderTimeout = cfg.ReadHeaderTimeout
+		}
+		if cfg.MaxHeaderBytes != 0 {
+			a.maxHeaderBytes = cfg.MaxHeaderBytes
+		}
+		// Views is an interface; a typed-nil (e.g. (*Renderer)(nil)) is treated
+		// as "no engine" by setViews, so passing one through is safe.
+		if cfg.Views != nil {
+			a.setViews(cfg.Views)
+		}
+	}
 }

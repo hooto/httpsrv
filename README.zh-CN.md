@@ -1,111 +1,61 @@
 # httpsrv
 
-httpsrv 是一个轻量级、模块化、高性能的 MVC Web 框架，专为 Go 语言设计，适用于开发面向互联网的各类 API、Web 应用。
+httpsrv 是一个轻量级、net/http 原生的 Go Web 框架。它提供 Fiber v3 风格的路由接口（`App`/`Router`/`Ctx`/`Handler`），完全基于标准库从零实现。
 
 **语言:** [English](README.md) | [中文](README.zh-CN.md)
 
 ## 特性
 
-- **模块化架构** - 业务代码通过模块组织管理，适合企业级复杂应用开发
-- **轻量简洁** - 核心代码精简（约 3000 行），接口稳定可靠，便于长期维护
-- **高性能** - 低内存占用，高并发稳定可靠，主流云服务商 2 核主机 QPS 可达 20000+
-- **MVC 模式** - 支持标准的 MVC 架构，代码结构清晰
-- **模板引擎** - 内置模板引擎，支持灵活的视图渲染
-- **多语言支持** - 内置 i18n 国际化支持
-- **中间件** - 支持请求过滤和拦截器
-- **会话管理** - 内置会话管理功能
+- **net/http 原生**：典型处理函数为 `func(Ctx) error`，同时也接受标准库的 `http.Handler`，可与 Go 生态直接互通
+- **radix 树路由**：按方法分树、`{param}` 与 `{*catchAll}` 路径参数、大小写敏感、静态段优先于参数优先于 catch-all（与注册顺序无关）
+- **中间件与分组**：`Use` 使用 fiber v3 风格中间件（`func(Ctx) error` + `c.Next()`），全局或按前缀作用域；`Group(prefix)` 共享前缀
+- **静态文件**：`middleware/static` 子包提供 `New(root)` / `FS(http.FS(embed))`，返回 `httpsrv.Handler`：`app.Get("/static/{*path}", static.New(root))`；支持目录或嵌入式文件系统
+- **模板渲染**：`html/template` 一次解析，`Ctx.Render(name, bind, layouts...)`
+- **i18n（可选）**：扁平的 locale 消息存储，`AcceptLanguage` 中间件（经 `x/text` 做 BCP-47 匹配）
+- **压缩（可选）**：`middleware/compress` 子包提供 `New(config...)`（按 `Accept-Encoding` 选 gzip/brotli，brotli 优先）
+- **优雅服务**：安全的默认超时，`Shutdown(ctx)`
 
 ## 文档
 
-- [快速开始](doc/start.md)
-- [常见问题](doc/qa.md)
-- [完整文档索引](doc/SUMMARY.md)
+完整指南（中文）：[`doc/zh-CN/`](doc/zh-CN/README.md)，[快速开始](doc/zh-CN/quickstart.md) · [路由](doc/zh-CN/routing.md) · [分组](doc/zh-CN/groups.md) · [中间件](doc/zh-CN/middleware.md) · [服务](doc/zh-CN/server.md) · [静态文件](doc/zh-CN/static.md) · [Ctx 与 Handler](doc/zh-CN/ctx.md) · [模板渲染](doc/zh-CN/views.md) · [i18n](doc/zh-CN/i18n.md) · [示例](doc/zh-CN/examples.md) · [目录](doc/zh-CN/SUMMARY.md)
+
+英文文档：[`doc/`](doc/README.md)
 
 ## 安装
 
 ```bash
-go get -u github.com/hooto/httpsrv
+go get -u github.com/hooto/httpsrv/v2
 ```
 
 ## 快速开始
-
-创建一个简单的 Hello World 应用：
 
 ```go
 package main
 
 import (
-    "github.com/hooto/httpsrv"
+    "github.com/hooto/httpsrv/v2"
 )
 
-// 定义一个控制器
-type Hello struct {
-    *httpsrv.Controller
-}
-
-// 定义一个 Action
-func (c Hello) WorldAction() {
-    c.RenderString("hello world")
-}
-
-// 创建模块
-func NewModule() httpsrv.Module {
-    module := httpsrv.NewModule("demo")
-    module.ControllerRegister(new(Hello))
-    return module
-}
-
 func main() {
-    // 注册模块到全局服务
-    httpsrv.GlobalService.ModuleRegister("/", NewModule())
-    
-    // 设置端口
-    httpsrv.GlobalService.Config.HttpPort = 8080
-    
-    // 启动服务
-    httpsrv.GlobalService.Start()
+    app := httpsrv.New()
+
+    app.Get("/", func(c httpsrv.Ctx) error {
+        return c.SendString("hello httpsrv")
+    })
+
+    app.Run(":8080")
 }
 ```
 
-运行：
+运行并访问：
 
 ```bash
-go run main.go
+$ go run .
+$ curl http://localhost:8080/
+hello httpsrv
 ```
 
-访问：
-
-```bash
-curl http://localhost:8080/hello/world/
-```
-
-输出：
-
-```
-hello world
-```
-
-## 项目结构
-
-推荐的目录结构：
-
-```
-├─ bin/              # 编译后的可执行文件
-├─ etc/              # 配置文件
-├─ config/           # 配置解析代码
-├─ cmd/
-│  └─ server/
-│     └─ main.go     # 服务入口
-├─ data/             # 数据库访问层
-├─ websrv/           # 模块目录
-│  ├─ api-v1/        # API 模块
-│  └─ frontend/      # 前端模块
-│     └─ views/      # 模板文件
-├─ webui/            # 静态文件
-└─ var/              # 运行时数据
-```
-
-完整示例项目：[httpsrv-demo](https://github.com/hooto/httpsrv-demo)
+可运行示例见 [`examples/`](examples)（hello、i18n、分组/静态/模板）。
 
 ## 推荐依赖库
 
@@ -128,31 +78,12 @@ httpsrv 保持核心简洁，以下是一些推荐使用的第三方库：
 
 ## 系统要求
 
-- **Go 版本**: 1.22 或更高
-- **推荐系统**: Linux、Unix 或 macOS（Windows 未做兼容测试）
-
-## 核心组件
-
-- [Service](doc/service.md) - 服务容器和配置管理
-- [Config](doc/config.md) - 配置文件处理
-- [Module](doc/module.md) - 模块管理和路由
-- [Controller](doc/controller.md) - 控制器和请求处理
-- [Template](doc/template.md) - 模板渲染和视图
-- [Router](doc/router.md) - 路由配置和匹配
-
-## 扩展组件
-
-- [log](doc/ext/log.md) - 日志记录扩展
-- [data-rdb](doc/ext/data-rdb.md) - 关系数据库扩展
-- [data-kv](doc/ext/data-kv.md) - Key-Value 数据库扩展
-- [flag](doc/ext/flag.md) - 命令行参数扩展
+- **Go 版本**: 1.26 或更高
+- **推荐系统**: Linux、Unix 或 macOS
 
 ## 参考项目
 
-httpsrv 在架构设计和部分代码实现中参考过以下项目，特此感谢！
-
-- [Revel Framework](https://github.com/revel/revel/)
-- [Beego Framework](https://github.com/astaxie/beego/)
+httpsrv 的 API 接口（`App`/`Router`/`Ctx`/`Handler`）参考了 [Fiber v3](https://github.com/gofiber/fiber/v3)，基于 net/http 的从零实现，不依赖 fiber。
 
 ## 许可证
 

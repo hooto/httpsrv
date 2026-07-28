@@ -1,24 +1,18 @@
-# 语言 / Language
-* [中文文档](README.md) | [中文目录](SUMMARY.md)
-* [English Documentation](../README.md) | [English Summary](../SUMMARY.md)
-
 # 介绍
-* [简介](README.md)
-* [快速开始](start.md)
+* [简介](README.md) | [English](../README.md)
+* [快速开始](quickstart.md)
 
-# 主要组件
-* [Service](service.md)
-* [Config](config.md)
-* [Module](module.md)
-* [Controller](controller.md)
-* [Router](router.md)
-* [Template](template.md)
+# 核心
+* [路由注册与路径参数](routing.md)
+* [路由分组](groups.md)
+* [中间件 Use](middleware.md)
+* [启动服务 Run](server.md)
 
-# 扩展组件
-* [log 日志记录](ext/log.md)
-* [Model, 关系数据库](ext/data-rdb.md)
-* [Cache, Key-Value 数据库](ext/data-kv.md)
-* [命令行传参](ext/flag.md)
+# 处理器
+* [Ctx 与 Handler](ctx.md)
+* [模板渲染 Render](views.md)
+* [i18n 国际化](i18n.md)
 
-# QA
-* [常见问题](qa.md)
+# 更多
+* [静态文件 Static](static.md)
+* [完整示例](examples.md)

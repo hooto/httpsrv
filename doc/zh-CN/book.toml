@@ -1,8 +1,15 @@
 [book]
-title = "httpsrv Documentation"
-description = "A lightweight, net/http-native web framework for Go."
-language = "en"
+title = "httpsrv 文档"
+description = "一个轻量、net/http 原生的 Go Web 框架。"
+language = "zh-CN"
 src = "."
+
+# Build into the shared output tree so the two books live under one site:
+#   doc/book/        (English)
+#   doc/book/zh-CN/  (this book)
+# Path is relative to the book root (doc/zh-CN).
+[build]
+build-dir = "../book/zh-CN"
 
 [output.html]
 default-theme = "light"
