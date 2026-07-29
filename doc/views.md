@@ -1,6 +1,6 @@
 # Template Rendering
 
-httpsrv provides an `html/template`-based engine, `Renderer`, used from a Handler via `Ctx.Render(name, bind, layouts...)`.
+httpsrv provides an `html/template`-based engine, used from a Handler via `Ctx.Render(name, bind, layouts...)`.
 
 ## The Views interface
 
@@ -13,11 +13,11 @@ type Views interface {
 }
 ```
 
-The built-in `*Renderer` satisfies it; you may also implement your own engine and plug it in.
+The built-in engine satisfies it; you may also implement your own engine and plug it in.
 
-## Build a Renderer
+## Build an engine
 
-Two sources (both return `*Renderer, error`; templates are **parsed once** at construction, so `{{template "x"}}` includes work):
+Two sources (both return `Views, error`; templates are **parsed once** at construction, so `{{template "x"}}` includes work):
 
 ```go
 // from a filesystem directory
@@ -34,17 +34,13 @@ The second argument, `extraFuncs template.FuncMap`, adds custom template functio
 
 ## Attach to the App
 
-Two equivalent forms:
+Attach via `WithViews` (accepts any `Views` implementation):
 
 ```go
-// 1) via WithViews (accepts any Views implementation)
 app := httpsrv.New(httpsrv.WithViews(r))
-
-// 2) via Config.Views (same thing, inline with other server settings)
-app := httpsrv.New(httpsrv.WithConfig(httpsrv.Config{Views: r}))
 ```
 
-Both accept any `Views` engine, e.g. a custom one:
+A custom engine works the same way:
 
 ```go
 app := httpsrv.New(httpsrv.WithViews(myEngine{}))
@@ -88,7 +84,7 @@ return c.Render("page.html", data, "layout.html")
 
 | Function | Description |
 |---|---|
-| `raw s` | output unescaped HTML (only for trusted content) |
+| `raw s` | output unescaped HTML (trusted content only; never user-controlled data, see Security notes below) |
 | `replace s old new` | string replacement |
 | `upper s` / `lower s` | uppercase / lowercase |
 | `date t` / `datetime t` | format time (`2006-01-02` / `2006-01-02 15:04`) |
@@ -101,6 +97,14 @@ r, _ := httpsrv.TemplatesFS(sub, template.FuncMap{
     "exclaim": func(s string) string { return s + "!" },
 })
 ```
+
+## Security notes
+
+**The template `name` must be trusted.** `Render` looks `name` up in the parsed template set and renders it; any loaded template is reachable by name, including pages you did not intend to expose (e.g. an admin template). Path segments such as `..` are collapsed, so there is no directory traversal or arbitrary file read, but the set of selectable templates is **not** restricted. Never pass user input directly as `name` (e.g. `c.Render(c.Params("page")+".html", ...)`); when dynamic selection is needed, validate against an allowlist.
+
+**HTML escaping is on by default.** All interpolations are context-escaped by `html/template`, so ordinary data is safe.
+
+**`raw` bypasses escaping.** `{{raw .X}}` emits its content verbatim as HTML. Use it only for fully trusted content; **never** for user-controlled data, or you introduce an XSS vulnerability.
 
 ## i18n
 
@@ -119,6 +123,7 @@ In a template: `{{T .Lang "hi"}}` — looks up by locale, falling back to the de
 ## Error handling
 
 - No Views engine configured, missing template name, or template execution error → `Render` returns an error → default **500**.
+- The default 500 body is a fixed string (`Internal Server Error`); the original error is logged server-side via `slog` and is **not** written to the client, avoiding disclosure of internal details such as template paths or expressions. For a custom error response, use `WithErrorHandler`.
 - Template **parse** errors surface from `TemplatesDir`/`TemplatesFS` at construction (fail-fast).
 
 ## Full example

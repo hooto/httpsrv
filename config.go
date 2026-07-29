@@ -34,14 +34,6 @@ type Config struct {
 
 	// MaxHeaderBytes caps request header size (default 1 MiB).
 	MaxHeaderBytes int
-
-	// Views is the interface that wraps the Render function. Set it to a
-	// template engine (e.g. a *Renderer from TemplatesDir/TemplatesFS) so
-	// Handler code can call Ctx.Render. A custom engine implementing Views may
-	// be plugged in here directly. Equivalent to WithViews.
-	//
-	// Default: nil
-	Views Views `json:"-"`
 }
 
 // WithConfig applies server settings from cfg. Only non-zero fields override the
@@ -67,11 +59,6 @@ func WithConfig(cfg Config) Option {
 		}
 		if cfg.MaxHeaderBytes != 0 {
 			a.maxHeaderBytes = cfg.MaxHeaderBytes
-		}
-		// Views is an interface; a typed-nil (e.g. (*Renderer)(nil)) is treated
-		// as "no engine" by setViews, so passing one through is safe.
-		if cfg.Views != nil {
-			a.setViews(cfg.Views)
 		}
 	}
 }

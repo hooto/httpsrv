@@ -39,8 +39,8 @@ import (
 //   - The registration surface offers method-specific routes (Get/Post/...),
 //     All, nestable Groups, and Use middleware, with method calls chaining.
 //   - Middleware is a Handler (func(Ctx) error); it calls Ctx.Next to continue
-//     the chain (fiber v3 style). Use may take a leading path to scope middleware
-//     to a prefix (segment-aware, all HTTP methods).
+//     the chain. Use may take a leading path to scope middleware to a prefix
+//     (segment-aware, all HTTP methods).
 //   - Path parameters use the "{name}" syntax and are exposed via the standard
 //     library (*http.Request).PathValue/SetPathValue (Go 1.22+); Handler reads
 //     them via Ctx.Params, an http.Handler via r.PathValue directly.
@@ -91,8 +91,8 @@ type App interface {
 	Shutdown(ctx context.Context) error
 }
 
-// New creates a new App. Pass options to configure it, e.g. WithViews or
-// WithConfig(Config{Views: ...}).
+// New creates a new App. Pass options to configure it, e.g. WithViews for a
+// template engine or WithConfig(Config{Addr: ...}) for server settings.
 func New(opts ...Option) App {
 	a := &app{
 		trees:             make(map[string]*radix.Node[Handler]),
@@ -115,17 +115,17 @@ func New(opts ...Option) App {
 // Option configures an App at construction.
 type Option func(*app)
 
-// WithViews attaches a template engine (a Views implementation, e.g. a
-// *Renderer from TemplatesDir/TemplatesFS) so Handler code can call Ctx.Render.
-// It is shorthand for WithConfig(Config{Views: v}); a custom Views engine may
-// equally be plugged in via Config.Views.
+// WithViews attaches a template engine (a Views implementation, e.g. one
+// built by TemplatesDir/TemplatesFS) so Handler code can call Ctx.Render.
+// A custom engine implementing Views may be plugged in the same way. It is the
+// sole entry point for a template engine: Config holds server settings only.
 func WithViews(v Views) Option {
 	return func(a *app) { a.setViews(v) }
 }
 
 // setViews stores a Views implementation behind an atomic pointer so per-request
-// reads in Ctx.Render stay lock-free. A nil v (including a typed-nil pointer
-// such as (*Renderer)(nil)) clears the engine.
+// reads in Ctx.Render stay lock-free. A nil v (including a typed-nil pointer)
+// clears the engine.
 func (a *app) setViews(v Views) {
 	if isNilViews(v) {
 		a.views.Store(nil)
@@ -134,8 +134,8 @@ func (a *app) setViews(v Views) {
 	a.views.Store(&v)
 }
 
-// isNilViews reports whether v is an untyped nil or a typed-nil pointer (e.g.
-// (*Renderer)(nil)), either of which should be treated as "no engine".
+// isNilViews reports whether v is an untyped nil or a typed-nil pointer,
+// either of which should be treated as "no engine".
 func isNilViews(v Views) bool {
 	if v == nil {
 		return true
@@ -233,10 +233,11 @@ func (a *app) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // dispatch is the terminal handler of the chain: match the method's tree,
 // extract path params, and invoke the matched Handler (its error propagates up
-// to ServeHTTP). A miss falls back to notFound. Static files are served by a
-// FileServer (github.com/hooto/httpsrv/v2/middleware/static) registered on a
-// catch-all route, so they flow through the same tree as explicit routes —
-// explicit routes win because static nodes beat the catch-all.
+// to ServeHTTP). A miss falls back to notFound. Static files are served by the
+// static handler (github.com/hooto/httpsrv/v2/middleware/static) registered on a
+// catch-all route (the /* wildcard or a named {*name}), so they flow through the
+// same tree as explicit routes — explicit routes win because static nodes beat
+// the catch-all.
 func (a *app) dispatch(c Ctx) error {
 	r := c.Request()
 	a.mu.RLock()
@@ -254,9 +255,8 @@ func (a *app) dispatch(c Ctx) error {
 	if ok {
 		// Expose params via r.SetPathValue so both Handler (Ctx.Params, which
 		// reads r.PathValue) and an http.Handler (r.PathValue) see them. A
-		// catch-all is also exposed under "*" (fiber's c.Params("*") convention)
-		// so a handler such as FileServer can read it without knowing the
-		// declared param name.
+		// catch-all is also exposed under "*" so a handler such as the static
+		// file server can read it without knowing the declared param name.
 		for _, p := range params {
 			r.SetPathValue(p.Key, p.Value)
 			if p.CatchAll {
@@ -355,11 +355,35 @@ func filterServeErr(err error) error {
 
 // defaultNotFound is the fallback handler when no route matches.
 func defaultNotFound(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(http.StatusNotFound)
-	fmt.Fprintln(w, "404 page not found")
+	fmt.Fprintln(w, defaultNotFoundPage)
 }
+
+const defaultNotFoundPage = `<html>
+  <head>
+    <title>Page Not Found</title>
+  </head>
+  <body style="display: flex; justify-content: center">
+    <div
+      style="
+        min-width: 300px;
+        max-width: 600px;
+        margin: auto;
+        font-size: 120%;
+        padding: 1rem;
+        border: 2px #ccc solid;
+        line-height: 120%;
+        border-radius: 1rem;
+        text-align: center;
+        color: #000;
+      "
+    >
+      <h1>Page Not Found</h1>
+    </div>
+  </body>
+</html>`
 
 // router holds the shared registration logic for the App and its Groups.
 // Both the App (prefix "") and Groups (a non-empty prefix) use it, so the verb

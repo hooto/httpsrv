@@ -29,10 +29,10 @@ func main() {
 
 	app := httpsrv.New(httpsrv.WithViews(r))
 
-	// Static files under /static: a FileServer registered on a catch-all route.
-	// Directory listing is disabled; explicit routes always take priority over
-	// the catch-all. Use app.All to serve every HTTP method.
-	app.Get("/static/{*path}", static.New("./static"))
+	// Static files under /static: registered on the unnamed "/*" catch-all
+	// wildcard. Directory listing is disabled; explicit routes always take
+	// priority over the catch-all. Use app.All to serve every HTTP method.
+	app.Get("/static/*", static.New("./static"))
 
 	// A Group shares a URL prefix.
 	demo := app.Group("/demo")

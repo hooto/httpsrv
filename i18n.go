@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // i18n — an opt-in module. Not loaded unless attached via WithI18n and/or its
-// Funcs() passed to a Renderer. The message structure is the simplest common
+// Funcs() passed to a template engine. The message structure is the simplest common
 // shape: locale -> key -> text (no singular/plural distinction).
 
 package httpsrv

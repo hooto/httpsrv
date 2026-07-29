@@ -9,7 +9,7 @@ httpsrv is a lightweight, net/http-native web framework for Go. It offers a Fibe
 - **net/http-native** — the typical handler is `func(Ctx) error`; a stdlib `http.Handler` (e.g. `http.HandlerFunc`) is also accepted, so handlers interoperate directly with the Go ecosystem
 - **Radix-tree routing** — per-method trees, `{param}` and `{*catchAll}` path values, case-sensitive, static segments beat params beat catch-alls (order-independent)
 - **Middleware & Groups** — `Use` with fiber v3-style middleware (`func(Ctx) error` + `c.Next()`), global or prefix-scoped; `Group(prefix)` for prefix sharing
-- **Static files** — `middleware/static` exposes `New(root)` / `FS(http.FS(embed))` returning an `httpsrv.Handler`: `app.Get("/static/{*path}", static.New(root))`; directory or embedded filesystem
+- **Static files** — `middleware/static` exposes `New(root, ...Config)` returning an `httpsrv.Handler`: `app.Get("/*", static.New("./public"))` or `app.Get("/*", static.New(".", static.Config{FS: embedFS}))`; directory or embedded filesystem
 - **Template rendering** — `html/template` parsed once, `Ctx.Render(name, bind, layouts...)`
 - **i18n (opt-in)** — flat locale message store, `AcceptLanguage` middleware (BCP-47 via `x/text`)
 - **Compression (opt-in)** — `middleware/compress` exposes `New(config...)` (gzip/brotli by `Accept-Encoding`, brotli preferred)

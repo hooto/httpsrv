@@ -27,13 +27,12 @@ import (
 )
 
 // Views is the interface that wraps the Render function. A template engine
-// implements it so Handler code can call Ctx.Render. The built-in *Renderer
-// satisfies it; plug in a custom engine via WithViews or
-// WithConfig(Config{Views: ...}).
+// implements it so Handler code can call Ctx.Render. The built-in engine
+// satisfies it; plug in a custom engine via WithViews.
 //
 // Default: nil
 type Views interface {
-	// Load is called once to load/parse templates. The built-in Renderer
+	// Load is called once to load/parse templates. The built-in engine
 	// parses at construction, so its Load is a no-op.
 	Load() error
 
@@ -41,32 +40,11 @@ type Views interface {
 	Render(w io.Writer, name string, bind any, layout ...string) error
 }
 
-// Renderer is the template engine. It parses html/template files from a
-// filesystem (a directory via TemplatesDir, or an embed/other fs.FS via
-// TemplatesFS) once at construction, then renders them by name with optional
-// layouts. Built-in template functions (raw, replace, upper, lower, date,
-// datetime) are always available; pass extraFuncs to add more (e.g. an I18n
-// store's Funcs() to get T). *Renderer implements Views.
-type Renderer struct {
-	fsys fs.FS
-	set  *template.Template // shared, parsed set (read-only after construction)
-}
-
-// Load is a no-op: templates are parsed once at construction (TemplatesFS/
-// TemplatesDir), so by the time a Renderer is attached there is nothing left
-// to load. It satisfies the Views interface.
-func (r *Renderer) Load() error { return nil }
-
-// Render renders name with bind into w, wrapping the output in each layout in
-// order (the last layout is the outermost). It implements Views.
-func (r *Renderer) Render(w io.Writer, name string, bind any, layout ...string) error {
-	return r.execute(w, name, bind, layout...)
-}
-
-// TemplatesFS builds a Renderer from fsys (e.g. an embed.FS after fs.Sub). All
-// .html/.tpl files are parsed immediately, so {{template "x"}} includes work.
-func TemplatesFS(fsys fs.FS, extraFuncs template.FuncMap) (*Renderer, error) {
-	r := &Renderer{fsys: fsys}
+// TemplatesFS builds a template engine from fsys (e.g. an embed.FS after
+// fs.Sub) and returns it as a Views. All .html/.tpl files are parsed
+// immediately, so {{template "x"}} includes work.
+func TemplatesFS(fsys fs.FS, extraFuncs template.FuncMap) (Views, error) {
+	r := &renderer{fsys: fsys}
 	r.set = template.New("").Funcs(builtinFuncs())
 	if extraFuncs != nil {
 		r.set = r.set.Funcs(extraFuncs)
@@ -77,13 +55,38 @@ func TemplatesFS(fsys fs.FS, extraFuncs template.FuncMap) (*Renderer, error) {
 	return r, nil
 }
 
-// TemplatesDir builds a Renderer from the filesystem directory at root.
-func TemplatesDir(root string, extraFuncs template.FuncMap) (*Renderer, error) {
+// TemplatesDir builds a template engine from the filesystem directory at root
+// and returns it as a Views.
+func TemplatesDir(root string, extraFuncs template.FuncMap) (Views, error) {
 	return TemplatesFS(os.DirFS(root), extraFuncs)
 }
 
+// renderer is the built-in template engine. It parses html/template files from
+// a filesystem (a directory via TemplatesDir, or an embed/other fs.FS via
+// TemplatesFS) once at construction, then renders them by name with optional
+// layouts. Built-in template functions (raw, replace, upper, lower, date,
+// datetime) are always available; pass extraFuncs to add more (e.g. an I18n
+// store's Funcs() to get T). *renderer implements Views. It is unexported:
+// callers obtain it as a Views via TemplatesDir/TemplatesFS and never need to
+// name the concrete type.
+type renderer struct {
+	fsys fs.FS
+	set  *template.Template // shared, parsed set (read-only after construction)
+}
+
+// Load is a no-op: templates are parsed once at construction (TemplatesFS/
+// TemplatesDir), so by the time an engine is attached there is nothing left
+// to load. It satisfies the Views interface.
+func (r *renderer) Load() error { return nil }
+
+// Render renders name with bind into w, wrapping the output in each layout in
+// order (the last layout is the outermost). It implements Views.
+func (r *renderer) Render(w io.Writer, name string, bind any, layout ...string) error {
+	return r.execute(w, name, bind, layout...)
+}
+
 // loadAll parses every .html/.tpl file under the root into the shared set.
-func (r *Renderer) loadAll() error {
+func (r *renderer) loadAll() error {
 	return fs.WalkDir(r.fsys, ".", func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -110,7 +113,7 @@ func (r *Renderer) loadAll() error {
 // (the last layout is the outermost). Each layout receives a map whose "Content"
 // key holds the inner rendered HTML; when bind is a map, its entries are merged
 // in (so layouts can use the same fields as the content template).
-func (r *Renderer) execute(w io.Writer, name string, bind any, layouts ...string) error {
+func (r *renderer) execute(w io.Writer, name string, bind any, layouts ...string) error {
 	name = cleanTemplateName(name)
 	if r.set.Lookup(name) == nil {
 		return fmt.Errorf("template %q not found", name)

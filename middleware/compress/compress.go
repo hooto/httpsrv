@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package compress provides response-compression middleware for httpsrv,
-// mirroring gofiber v3's middleware/compress API (New(config) -> Handler).
+// Package compress provides response-compression middleware for httpsrv
+// (New(config) -> Handler).
 //
 // Register it with Use; it compresses responses with gzip or brotli, chosen
 // from the request's Accept-Encoding (brotli preferred, then gzip):
@@ -39,9 +39,8 @@ import (
 	"github.com/hooto/httpsrv/v2"
 )
 
-// Compression levels, mirroring gofiber v3's compress constants. They are an
-// enum (not raw gzip/brotli levels); New maps each to the appropriate encoder
-// level.
+// Compression levels. They are an enum (not raw gzip/brotli levels); New maps
+// each to the appropriate encoder level.
 const (
 	LevelDefault         = iota // 0: gzip DefaultCompression, brotli quality 5
 	LevelBestSpeed              // 1: gzip BestSpeed, brotli BestSpeed
@@ -63,14 +62,14 @@ var ConfigDefault = Config{
 	Level: LevelDefault,
 }
 
-// New returns compression middleware mirroring gofiber v3's compress.New. It
-// compresses responses with brotli (preferred) or gzip based on Accept-Encoding.
+// New returns compression middleware. It compresses responses with brotli
+// (preferred) or gzip based on Accept-Encoding.
 func New(config ...Config) httpsrv.Handler {
 	cfg := ConfigDefault
 	if len(config) > 0 {
 		cfg = config[0]
 	}
-	return func(c httpsrv.Ctx) error {
+	return func(c httpsrv.Ctx) (err error) {
 		if cfg.Next != nil && cfg.Next(c) {
 			return c.Next()
 		}
@@ -79,17 +78,20 @@ func New(config ...Config) httpsrv.Handler {
 			return c.Next()
 		}
 		// Wrap the response writer for the rest of the chain so downstream
-		// writes are compressed; restore it after, then flush the encoder.
+		// writes are compressed. Restore the original writer and flush the
+		// encoder on the way out, even if Next panics. The encoder writes to
+		// the original writer captured above (not c.w), so restore-then-Close
+		// is order-independent.
 		orig := c.Response()
 		cw := newCompressResponseWriter(orig, enc, cfg.Level)
 		c.SetResponse(cw)
-		err := c.Next()
-		cerr := cw.Close()
-		c.SetResponse(orig)
-		if err != nil {
-			return err
-		}
-		return cerr
+		defer func() {
+			c.SetResponse(orig)
+			if cerr := cw.Close(); err == nil {
+				err = cerr
+			}
+		}()
+		return c.Next()
 	}
 }
 

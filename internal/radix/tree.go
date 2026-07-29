@@ -15,10 +15,12 @@
 // Package radix implements a generic radix tree for HTTP route matching.
 //   - Nodes are static (byte-exact), param ("{name}", matches [^/]+), or
 //     catch-all ("{*name}", matches the rest of the path including slashes).
-//   - Only brace params "{name}" / "{*name}" are recognized.
+//   - A bare "*" segment is an unnamed catch-all (the "/*" wildcard); "/*" and
+//     "/static/*" are equivalent to "/{*}" and "/static/{*}" and expose the
+//     remainder under the key "*".
 //   - Static nodes beat params, which beat catch-alls, at the same position —
 //     independent of registration order, so a static route is never shadowed.
-//   - A catch-all "{*name}" must be the last segment of a pattern.
+//   - A catch-all must be the last segment of a pattern.
 //   - Insert and Search both CleanPath-normalize; both must use the same rule.
 //
 // Matching is case-sensitive. The tree is generic in the handler value T, so it
@@ -36,9 +38,9 @@ import (
 type nodeType uint8
 
 const (
-	nodeStatic nodeType = iota // static segment, e.g. "/doc/"
-	nodeParam                  // param segment, e.g. "{id}"
-	nodeCatchAll               // catch-all segment, e.g. "{*path}", matches the rest of the path
+	nodeStatic   nodeType = iota // static segment, e.g. "/doc/"
+	nodeParam                    // param segment, e.g. "{id}"
+	nodeCatchAll                 // catch-all segment, e.g. "{*path}", matches the rest of the path
 )
 
 // Param is a single extracted path parameter.
@@ -104,7 +106,9 @@ func validatePattern(p string) error {
 			if !inParam {
 				return fmt.Errorf("invalid route pattern %q: unmatched '}'", p)
 			}
-			if i == nameStart {
+			// An empty name is allowed only for a catch-all ("{*}", the unnamed
+			// wildcard); a regular "{}" param still needs a name.
+			if i == nameStart && !catchAll {
 				return fmt.Errorf("invalid route pattern %q: empty parameter name", p)
 			}
 			if catchAll && i != len(p)-1 {
@@ -125,10 +129,33 @@ func validatePattern(p string) error {
 	return nil
 }
 
-// Insert registers a route. The pattern is CleanPath-normalized then validated;
-// on error the tree is left unchanged.
+// normalizeWildcards rewrites each segment that is exactly "*" into the unnamed
+// catch-all "{*}", so the "/*" wildcard ("/*" or "/static/*") behaves like
+// "/{*}" / "/static/{*}". Embedded '*' (e.g. "/a*b") and brace params are left
+// untouched. Called only on patterns (Insert), not request paths (Search).
+func normalizeWildcards(p string) string {
+	if !strings.ContainsRune(p, '*') {
+		return p
+	}
+	segs := strings.Split(p, "/")
+	changed := false
+	for i, s := range segs {
+		if s == "*" {
+			segs[i] = "{*}"
+			changed = true
+		}
+	}
+	if !changed {
+		return p
+	}
+	return strings.Join(segs, "/")
+}
+
+// Insert registers a route. The pattern is CleanPath-normalized, "*" wildcard
+// segments are rewritten to "{*}", then validated; on error the tree is left
+// unchanged.
 func (n *Node[T]) Insert(path string, handler T) error {
-	path = CleanPath(path)
+	path = normalizeWildcards(CleanPath(path))
 	if err := validatePattern(path); err != nil {
 		return err
 	}
@@ -355,6 +382,9 @@ func (n *Node[T]) search(path string, params Params) (T, Params, bool) {
 			key := child.path
 			if len(key) >= 3 && key[0] == '{' && key[1] == '*' && key[len(key)-1] == '}' {
 				key = key[2 : len(key)-1] // strip "{*" and "}"
+			}
+			if key == "" { // unnamed "/*" wildcard -> conventional "*" key
+				key = "*"
 			}
 			if child.isWord {
 				return child.handler, append(params, Param{Key: key, Value: rest, CatchAll: true}), true

@@ -251,7 +251,7 @@ func TestRouteTreeColonIsLiteral(t *testing.T) {
 
 // A {*name} catch-all matches the rest of the path (including slashes) and is
 // exposed as a param with CatchAll=true. The leading "/" is stripped from the
-// value, matching fiber's c.Params("*") convention.
+// value, which is also exposed under the "*" key.
 func TestRouteTreeCatchAll(t *testing.T) {
 	root := &Node[string]{}
 	mustInsert(t, root, "/files/{*path}", "FileHandler")
@@ -260,7 +260,7 @@ func TestRouteTreeCatchAll(t *testing.T) {
 		{"/files/a.txt", "FileHandler", Params{{"path", "a.txt", true}}},
 		{"/files/css/main.css", "FileHandler", Params{{"path", "css/main.css", true}}},
 		{"/files/deep/nested/dir/x", "FileHandler", Params{{"path", "deep/nested/dir/x", true}}},
-		{"/files", "", nil},   // bare prefix (no trailing segment) does not match
+		{"/files", "", nil}, // bare prefix (no trailing segment) does not match
 		{"/other/a.txt", "", nil},
 	})
 }
@@ -286,7 +286,6 @@ func TestRouteTreeCatchAllPriority(t *testing.T) {
 func TestRouteTreeCatchAllInvalid(t *testing.T) {
 	for _, p := range []string{
 		"/files/{*path}/extra", // trailing segment after catch-all
-		"/files/{*}",           // empty catch-all name
 		"/files/{*a}{b}",       // catch-all not alone in segment
 	} {
 		t.Run(p, func(t *testing.T) {
@@ -298,6 +297,46 @@ func TestRouteTreeCatchAllInvalid(t *testing.T) {
 				t.Errorf("Insert(%q) mutated the tree", p)
 			}
 		})
+	}
+}
+
+// The unnamed "/*" wildcard (a bare "*" segment, or the equivalent "{*}")
+// matches the rest of the path and exposes it under the key "*". It is weaker
+// than a static segment at the same position.
+func TestRouteTreeUnnamedWildcard(t *testing.T) {
+	cases := []struct {
+		pattern string
+		target  string
+	}{
+		{"/*", "/css/main.css"},
+		{"/static/*", "/static/css/main.css"},
+		{"/files/{*}", "/files/css/main.css"},
+	}
+	for _, c := range cases {
+		t.Run(c.pattern, func(t *testing.T) {
+			root := &Node[string]{}
+			mustInsert(t, root, c.pattern, "H")
+			h, params, found := root.Search(c.target, nil)
+			want := Params{{Key: "*", Value: "css/main.css", CatchAll: true}}
+			if !found || h != "H" || !paramsEqual(params, want) {
+				t.Fatalf("Search(%q): h=%q params=%v found=%v, want %v", c.target, h, params, found, want)
+			}
+		})
+	}
+
+	// "/*" does not match the bare root (consistent with named catch-alls).
+	root := &Node[string]{}
+	mustInsert(t, root, "/*", "H")
+	if _, _, found := root.Search("/", nil); found {
+		t.Fatalf("Search(\"/\"): /* should not match the bare root")
+	}
+
+	// A static route beats the unnamed wildcard at the same position.
+	root = &Node[string]{}
+	mustInsert(t, root, "/*", "W")
+	mustInsert(t, root, "/explicit", "E")
+	if h, _, _ := root.Search("/explicit", nil); h != "E" {
+		t.Fatalf("static should beat /*: got %q", h)
 	}
 }
 

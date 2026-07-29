@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
@@ -66,8 +67,8 @@ type Ctx interface {
 	Render(name string, bind any, layouts ...string) error // html template render
 	Translate(locale, key string, args ...any) string      // i18n lookup (requires WithI18n)
 
-	// Next runs the next handler in the middleware chain (fiber v3 style).
-	// Middleware call it to continue; route handlers are terminal and ignore it.
+	// Next runs the next handler in the middleware chain. Middleware call it to
+	// continue; route handlers are terminal and ignore it.
 	Next() error
 }
 
@@ -91,9 +92,9 @@ func newCtx(w http.ResponseWriter, r *http.Request) *ctxImpl {
 	return &ctxImpl{w: w, r: r}
 }
 
-// Next runs the next handler in the chain (fiber v3 style). Middleware use it to
-// continue; the terminal dispatch handler does not call it. Returns the next
-// handler's error (nil past the end of the chain).
+// Next runs the next handler in the chain. Middleware use it to continue; the
+// terminal dispatch handler does not call it. Returns the next handler's error
+// (nil past the end of the chain).
 func (c *ctxImpl) Next() error {
 	c.index++
 	if c.index >= len(c.chain) {
@@ -234,12 +235,11 @@ func (c *ctxImpl) Redirect(status int, url string) error {
 }
 
 // Render renders the named template (with optional layouts) and writes it as
-// text/html. Requires a Views engine configured via WithViews or
-// WithConfig(Config{Views: ...}).
+// text/html. Requires a Views engine configured via WithViews.
 func (c *ctxImpl) Render(name string, bind any, layouts ...string) error {
 	v := c.views()
 	if v == nil {
-		return errors.New("httpsrv: no views configured (use WithViews or WithConfig(Config{Views: ...}))")
+		return errors.New("httpsrv: no views configured (use WithViews)")
 	}
 	c.w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	return v.Render(c.w, name, bind, layouts...)
@@ -298,13 +298,19 @@ func basicToHandler(h http.Handler) Handler {
 	}
 }
 
-// defaultCtxError is the fallback when a Handler returns an error: respond 500.
-// If the Handler already wrote the response, this superfluous header/body is
-// logged by net/http — a configurable ErrorHandler can replace this.
+// defaultCtxError is the fallback when a Handler returns an error: respond 500
+// with a generic body. The error is logged via slog rather than written to the
+// client, since it may disclose internal details (template names/paths, type or
+// stack context). Replace this behavior with a custom ErrorHandler
+// (WithErrorHandler) if a different response is wanted. If the Handler already
+// wrote the response, the superfluous header/body is logged by net/http.
 func defaultCtxError(w http.ResponseWriter, err error) {
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	slog.Error("httpsrv: handler error", "err", err)
+	h := w.Header()
+	h.Set("Content-Type", "text/plain; charset=utf-8")
+	h.Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(http.StatusInternalServerError)
-	fmt.Fprintln(w, err.Error())
+	fmt.Fprintln(w, "Internal Server Error")
 }
 
 // clientIP extracts the client address, honoring X-Forwarded-For (first hop)

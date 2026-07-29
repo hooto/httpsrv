@@ -63,6 +63,7 @@ app.Get("/files/{*path}", func(c httpsrv.Ctx) error {
 - 优先级：**静态段 > 普通参数 `{name}` > catch-all `{*name}`**，与注册顺序无关。
 - `{*name}` 之后不能再有内容，例如 `/files/{*path}/extra` 注册时会 panic。
 - 同一位置不能有两个不同名的 catch-all，例如 `/files/{*a}` 与 `/files/{*b}` 冲突；同名重复注册则覆盖 handler。
+- **无名通配符 `/*`**：一段裸 `*` 是无名 catch-all（gofiber v3 风格），等价于 `{*}`，值同样以 `"*"` 暴露。常用于静态文件：`app.Get("/*", static.New("./public"))`、`app.Get("/static/*", ...)`。
 
 ## 静态路由优先于参数路由
 

@@ -63,6 +63,7 @@ app.Get("/files/{*path}", func(c httpsrv.Ctx) error {
 - Priority: **static segment > `{name}` parameter > `{*name}` catch-all**, independent of registration order.
 - Nothing may follow `{*name}`; e.g. `/files/{*path}/extra` panics at registration.
 - Two differently named catch-alls at the same position conflict (e.g. `/files/{*a}` vs `/files/{*b}`); re-registering the same name overwrites the handler.
+- **Unnamed `/*` wildcard**: a bare `*` segment is an unnamed catch-all (gofiber v3 style), equivalent to `{*}`, whose value is likewise exposed under `"*"`. Common for static files: `app.Get("/*", static.New("./public"))`, `app.Get("/static/*", ...)`.
 
 ## Static routes beat parameter routes
 

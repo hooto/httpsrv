@@ -121,48 +121,19 @@ func TestServeEmptyCatchAll(t *testing.T) {
 	}
 }
 
-// New and FS return non-nil handlers that satisfy httpsrv.Handler.
-func TestNewAndFS(t *testing.T) {
-	if h := New("."); h == nil {
-		t.Fatal("New returned nil")
+// New returns non-nil handlers for both the directory and Config.FS forms.
+func TestNew(t *testing.T) {
+	if New(".") == nil {
+		t.Fatal("New(\".\") returned nil")
 	}
-	if h := FS(http.FS(fstest.MapFS{})); h == nil {
-		t.Fatal("FS returned nil")
+	if New(".", Config{FS: fstest.MapFS{}}) == nil {
+		t.Fatal("New with Config.FS returned nil")
 	}
 }
 
 // ---------------------------------------------------------------------------
 // Integration tests: end-to-end through the httpsrv router
 // ---------------------------------------------------------------------------
-
-// Dir mode: serves files from a filesystem directory.
-func TestStaticDir(t *testing.T) {
-	dir := t.TempDir()
-	mustWriteFile(t, filepath.Join(dir, "hello.txt"), "hello world")
-	mustWriteFile(t, filepath.Join(dir, "css", "main.css"), "body{}")
-
-	a := httpsrv.New()
-	a.All("/static/{*path}", New(dir))
-	a.Get("/explicit", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, "route") }))
-
-	cases := []struct {
-		target string
-		code   int
-		body   string // checked only when non-empty
-	}{
-		{"/static/hello.txt", 200, "hello world"},
-		{"/static/css/main.css", 200, "body{}"},
-		{"/static/missing.txt", 404, ""},
-		{"/static/css", 404, ""}, // directory -> no listing
-		{"/explicit", 200, "route"},
-	}
-	for _, c := range cases {
-		rec := doRouteRec(a, http.MethodGet, c.target)
-		if rec.Code != c.code || (c.body != "" && rec.Body.String() != c.body) {
-			t.Fatalf("%s: code=%d body=%q, want code=%d body=%q", c.target, rec.Code, rec.Body.String(), c.code, c.body)
-		}
-	}
-}
 
 // An explicit route takes priority over a static catch-all at the same prefix.
 func TestStaticExplicitWins(t *testing.T) {
@@ -198,34 +169,26 @@ func TestStaticPrefixBoundary(t *testing.T) {
 	}
 }
 
-// FS mode: serves files from an embedded http.FileSystem.
-func TestStaticFS(t *testing.T) {
-	mapFS := fstest.MapFS{
-		"assets/a.txt": {Data: []byte("from-fs"), Mode: 0o644},
-	}
-	a := httpsrv.New()
-	a.All("/s/{*path}", FS(http.FS(mapFS)))
-
-	rec := doRouteRec(a, http.MethodGet, "/s/assets/a.txt")
-	if rec.Code != 200 || rec.Body.String() != "from-fs" {
-		t.Fatalf("fs serve: code=%d body=%q", rec.Code, rec.Body.String())
-	}
-}
-
-// embedStaticFS is a real embed.FS fixture for TestStaticEmbed.
+// embedStaticFS is a real embed.FS fixture for the Config.FS tests.
 //
 //go:embed testdata/embed
 var embedStaticFS embed.FS
 
-// FS mode (real embed): serve files from an actual embed.FS end-to-end.
-func TestStaticEmbed(t *testing.T) {
+// embedRoot returns the embedded test fixture as an fs.FS.
+func embedRoot(t *testing.T) fs.FS {
+	t.Helper()
 	root, err := fs.Sub(embedStaticFS, "testdata/embed")
 	if err != nil {
 		t.Fatalf("fs.Sub: %v", err)
 	}
+	return root
+}
 
+// New serves files from a Config.FS (io/fs), e.g. an embed.FS. root is a
+// sub-path within the FS; "." or "" means the whole FS.
+func TestStaticNewConfigFS(t *testing.T) {
 	a := httpsrv.New()
-	a.All("/e/{*path}", FS(http.FS(root)))
+	a.All("/e/{*path}", New(".", Config{FS: embedRoot(t)}))
 
 	cases := []struct {
 		target string
@@ -242,6 +205,80 @@ func TestStaticEmbed(t *testing.T) {
 	}
 	if rec := doRouteRec(a, http.MethodGet, "/e/missing.txt"); rec.Code != 404 {
 		t.Fatalf("missing: code=%d, want 404", rec.Code)
+	}
+}
+
+// With Config.FS set, root selects a sub-path within the filesystem.
+func TestStaticNewConfigFSSubPath(t *testing.T) {
+	a := httpsrv.New()
+	a.All("/e/{*path}", New("sub", Config{FS: embedRoot(t)})) // serve the "sub" subtree
+
+	// "sub/nested.txt" is served at the mount root as "nested.txt"
+	rec := doRouteRec(a, http.MethodGet, "/e/nested.txt")
+	if rec.Code != 200 || rec.Body.String() != "nested\n" {
+		t.Fatalf("sub-path root: code=%d body=%q", rec.Code, rec.Body.String())
+	}
+	// "hello.txt" lives at the FS root, not under "sub" -> not served
+	if rec := doRouteRec(a, http.MethodGet, "/e/hello.txt"); rec.Code != 404 {
+		t.Fatalf("root sub-path should hide top-level file: code=%d, want 404", rec.Code)
+	}
+}
+
+// An empty root with no Config.FS does not panic: it logs the error and falls
+// back to an empty filesystem that 404s every request.
+func TestNewEmptyRootFallback(t *testing.T) {
+	a := httpsrv.New()
+	a.Get("/*", New("")) // misconfiguration degrades gracefully
+
+	rec := doRouteRec(a, http.MethodGet, "/anything.txt")
+	if rec.Code != 404 {
+		t.Fatalf("empty-root fallback: code=%d, want 404", rec.Code)
+	}
+}
+
+// Wildcard mode: the unnamed "/*" wildcard serves a whole file tree without a
+// named {*path} parameter.
+func TestStaticRootWildcard(t *testing.T) {
+	dir := t.TempDir()
+	mustWriteFile(t, filepath.Join(dir, "hello.txt"), "hello world")
+	mustWriteFile(t, filepath.Join(dir, "css", "main.css"), "body{}")
+
+	a := httpsrv.New()
+	a.Get("/*", New(dir))
+
+	cases := []struct {
+		target string
+		code   int
+		body   string // checked only when non-empty
+	}{
+		{"/hello.txt", 200, "hello world"},
+		{"/css/main.css", 200, "body{}"},
+		{"/missing.txt", 404, ""},
+		{"/css", 404, ""}, // directory -> 404
+	}
+	for _, c := range cases {
+		rec := doRouteRec(a, http.MethodGet, c.target)
+		if rec.Code != c.code || (c.body != "" && rec.Body.String() != c.body) {
+			t.Fatalf("%s: code=%d body=%q, want code=%d body=%q", c.target, rec.Code, rec.Body.String(), c.code, c.body)
+		}
+	}
+}
+
+// A prefix wildcard "/static/*" serves under that prefix.
+func TestStaticPrefixWildcard(t *testing.T) {
+	dir := t.TempDir()
+	mustWriteFile(t, filepath.Join(dir, "logo.png"), "PNGDATA")
+
+	a := httpsrv.New()
+	a.Get("/static/*", New(dir))
+
+	rec := doRouteRec(a, http.MethodGet, "/static/logo.png")
+	if rec.Code != 200 || rec.Body.String() != "PNGDATA" {
+		t.Fatalf("/static/logo.png: code=%d body=%q", rec.Code, rec.Body.String())
+	}
+	// outside the prefix
+	if rec := doRouteRec(a, http.MethodGet, "/logo.png"); rec.Code != 404 {
+		t.Fatalf("/logo.png: code=%d, want 404 (outside /static)", rec.Code)
 	}
 }
 
@@ -296,55 +333,8 @@ func TestStaticWithMiddleware(t *testing.T) {
 	}
 }
 
-// New returns an httpsrv.Handler usable directly with Get (use All to serve
-// every HTTP method).
-func TestStaticViaGet(t *testing.T) {
-	dir := t.TempDir()
-	mustWriteFile(t, filepath.Join(dir, "hello.txt"), "hello world")
-	mustWriteFile(t, filepath.Join(dir, "css", "main.css"), "body{}")
-
-	a := httpsrv.New()
-	a.Get("/static/{*path}", New(dir))
-
-	cases := []struct {
-		target string
-		code   int
-		body   string
-	}{
-		{"/static/hello.txt", 200, "hello world"},
-		{"/static/css/main.css", 200, "body{}"},
-		{"/static/missing.txt", 404, ""},
-		{"/static/css", 404, ""}, // directory -> no listing
-		{"/static", 404, ""},     // bare prefix, no trailing segment
-	}
-	for _, c := range cases {
-		rec := doRouteRec(a, http.MethodGet, c.target)
-		if rec.Code != c.code || (c.body != "" && rec.Body.String() != c.body) {
-			t.Fatalf("%s: code=%d body=%q, want code=%d body=%q", c.target, rec.Code, rec.Body.String(), c.code, c.body)
-		}
-	}
-}
-
-// An explicit route takes priority over a static handler on a catch-all.
-func TestStaticGetExplicitWins(t *testing.T) {
-	dir := t.TempDir()
-	mustWriteFile(t, filepath.Join(dir, "x.txt"), "from-file")
-	mustWriteFile(t, filepath.Join(dir, "y.txt"), "from-file-2")
-
-	a := httpsrv.New()
-	a.Get("/static/x.txt", func(c httpsrv.Ctx) error { return c.SendString("from-route") })
-	a.Get("/static/{*path}", New(dir))
-
-	if rec := doRouteRec(a, http.MethodGet, "/static/x.txt"); rec.Body.String() != "from-route" {
-		t.Fatalf("explicit route should win: %q", rec.Body.String())
-	}
-	if rec := doRouteRec(a, http.MethodGet, "/static/y.txt"); rec.Body.String() != "from-file-2" {
-		t.Fatalf("other files still served: %q", rec.Body.String())
-	}
-}
-
 // The catch-all value is exposed under both the declared name and the
-// conventional "*" key (fiber's c.Params("*") style).
+// conventional "*" key.
 func TestStaticCatchAllParam(t *testing.T) {
 	dir := t.TempDir()
 	mustWriteFile(t, filepath.Join(dir, "a.txt"), "A")
@@ -364,22 +354,5 @@ func TestStaticCatchAllParam(t *testing.T) {
 	}
 	if rec := doRouteRec(a, http.MethodGet, "/static/a.txt"); rec.Code != 200 || rec.Body.String() != "A" {
 		t.Fatalf("static via catch-all: code=%d body=%q", rec.Code, rec.Body.String())
-	}
-}
-
-// Directory traversal beyond the root is blocked for a Get-registered handler.
-func TestStaticGetTraversal(t *testing.T) {
-	base := t.TempDir()
-	mustWriteFile(t, filepath.Join(base, "secret.txt"), "top-secret")
-	mustWriteFile(t, filepath.Join(base, "public", "ok.txt"), "ok")
-
-	a := httpsrv.New()
-	a.Get("/files/{*path}", New(filepath.Join(base, "public")))
-
-	if rec := doRouteRec(a, http.MethodGet, "/files/ok.txt"); rec.Code != 200 || rec.Body.String() != "ok" {
-		t.Fatalf("ok.txt: code=%d body=%q", rec.Code, rec.Body.String())
-	}
-	if rec := doRouteRec(a, http.MethodGet, "/files/../secret.txt"); rec.Code != 404 {
-		t.Fatalf("traversal: code=%d, want 404", rec.Code)
 	}
 }

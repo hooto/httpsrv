@@ -168,7 +168,7 @@ func TestRenderDir(t *testing.T) {
 	}
 }
 
-// Render without a configured Renderer yields 500.
+// Render without a configured engine yields 500.
 func TestRenderNoRenderer(t *testing.T) {
 	app := New() // no WithViews
 	app.Get("/", func(c Ctx) error { return c.Render("x.html", nil) })
@@ -204,26 +204,7 @@ func TestRenderParseError(t *testing.T) {
 	}
 }
 
-// Config.Views is the gofiber-v3-style way to attach a template engine.
-func TestRenderConfigViews(t *testing.T) {
-	r, err := TemplatesFS(mapFS(map[string]string{
-		"hello.html": `<h1>Hello {{.Name}}</h1>`,
-	}), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	app := New(WithConfig(Config{Views: r}))
-	app.Get("/h", func(c Ctx) error {
-		return c.Render("hello.html", map[string]string{"Name": "World"})
-	})
-
-	rec := doRouteRec(app, http.MethodGet, "/h")
-	if rec.Code != 200 || rec.Body.String() != "<h1>Hello World</h1>" {
-		t.Fatalf("code=%d body=%q", rec.Code, rec.Body.String())
-	}
-}
-
-// A custom Views implementation (not *Renderer) can be plugged in via Config.Views.
+// A custom Views implementation (not the built-in engine) can be plugged in via WithViews.
 type fakeViews struct{}
 
 func (fakeViews) Load() error { return nil }
@@ -233,7 +214,7 @@ func (fakeViews) Render(w io.Writer, name string, bind any, layout ...string) er
 }
 
 func TestRenderCustomViews(t *testing.T) {
-	app := New(WithConfig(Config{Views: fakeViews{}}))
+	app := New(WithViews(fakeViews{}))
 	app.Get("/", func(c Ctx) error {
 		return c.Render("x.html", "data")
 	})
@@ -258,9 +239,9 @@ func TestRenderWithViewsNil(t *testing.T) {
 	}
 }
 
-// Config{Views: (*Renderer)(nil)} (typed nil) is treated as no engine, not a panic.
-func TestRenderConfigViewsTypedNil(t *testing.T) {
-	app := New(WithConfig(Config{Views: (*Renderer)(nil)}))
+// WithViews((*renderer)(nil)) (typed nil) is treated as no engine, not a panic.
+func TestRenderWithViewsTypedNil(t *testing.T) {
+	app := New(WithViews((*renderer)(nil)))
 	app.Get("/", func(c Ctx) error { return c.Render("x.html", nil) })
 
 	rec := doRouteRec(app, http.MethodGet, "/")

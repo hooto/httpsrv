@@ -144,6 +144,31 @@ func TestCtxHandlerError(t *testing.T) {
 	}
 }
 
+// The default error response must not leak the error text (it may contain
+// template paths, expression snippets, or internal types), must be served as
+// text/plain, and must carry X-Content-Type-Options: nosniff.
+func TestCtxDefaultErrorIsSafe(t *testing.T) {
+	a := New()
+	a.Get("/err", func(c Ctx) error { return errSentinel })
+	rec := doRouteRec(a, http.MethodGet, "/err")
+
+	if rec.Code != 500 {
+		t.Fatalf("code=%d, want 500", rec.Code)
+	}
+	if rec.Header().Get("Content-Type") != "text/plain; charset=utf-8" {
+		t.Fatalf("content-type=%q, want text/plain", rec.Header().Get("Content-Type"))
+	}
+	if rec.Header().Get("X-Content-Type-Options") != "nosniff" {
+		t.Fatalf("X-Content-Type-Options=%q, want nosniff", rec.Header().Get("X-Content-Type-Options"))
+	}
+	if strings.Contains(rec.Body.String(), errSentinel.Error()) {
+		t.Fatalf("response body leaked the error: %q", rec.Body.String())
+	}
+	if rec.Body.String() != "Internal Server Error\n" {
+		t.Fatalf("body=%q, want generic Internal Server Error", rec.Body.String())
+	}
+}
+
 var errSentinel = errors.New("boom")
 
 func TestCtxUnsupportedHandlerPanics(t *testing.T) {

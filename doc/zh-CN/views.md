@@ -13,11 +13,11 @@ type Views interface {
 }
 ```
 
-内置的 `*Renderer` 即满足该接口；你也可以实现自己的引擎并接入。
+内置引擎即满足该接口；你也可以实现自己的引擎并接入。
 
-## 构造 Renderer
+## 构造引擎
 
-两种来源（均返回 `*Renderer, error`，模板在构造时**一次性解析**，因此 `{{template "x"}}` 包含可用）：
+两种来源（均返回 `Views, error`，模板在构造时**一次性解析**，因此 `{{template "x"}}` 包含可用）：
 
 ```go
 // 从文件系统目录
@@ -36,17 +36,13 @@ r, err := httpsrv.TemplatesFS(sub, nil)
 
 ## 挂载到 App
 
-两种等价方式：
+通过 `WithViews` 挂载（接受任意 `Views` 实现）：
 
 ```go
-// 1) 通过 WithViews（接受任意 Views 实现）
 app := httpsrv.New(httpsrv.WithViews(r))
-
-// 2) 通过 Config.Views（同理，可与其它服务器设置写在一起）
-app := httpsrv.New(httpsrv.WithConfig(httpsrv.Config{Views: r}))
 ```
 
-两者都接受任意 `Views` 引擎，例如自定义引擎：
+也接受自定义引擎：
 
 ```go
 app := httpsrv.New(httpsrv.WithViews(myEngine{}))
@@ -90,7 +86,7 @@ return c.Render("page.html", data, "layout.html")
 
 | 函数 | 说明 |
 |---|---|
-| `raw s` | 输出不转义的 HTML（仅用于可信内容） |
+| `raw s` | 输出不转义的 HTML（仅用于可信内容，禁止用于用户可控数据，见下方「安全须知」） |
 | `replace s old new` | 字符串替换 |
 | `upper s` / `lower s` | 转大写 / 小写 |
 | `date t` / `datetime t` | 格式化时间（`2006-01-02` / `2006-01-02 15:04`） |
@@ -103,6 +99,14 @@ r, _ := httpsrv.TemplatesFS(sub, template.FuncMap{
     "exclaim": func(s string) string { return s + "!" },
 })
 ```
+
+## 安全须知
+
+**模板名 `name` 必须可信。** `Render` 按 `name` 在已解析的模板集合中查找并渲染；任意一个已加载的模板都能按名被渲染，包括你不打算对外暴露的页面（如后台模板）。框架会折叠 `..` 等路径片段，因此不存在目录穿越或任意文件读取，但**不会**限制可选模板的范围。所以切勿把用户输入直接作为 `name`（例如 `c.Render(c.Params("page")+".html", ...)`）；确需动态选择时请用白名单校验。
+
+**默认 HTML 转义。** 所有插值默认经 `html/template` 上下文感知转义，普通数据是安全的。
+
+**`raw` 会跳过转义。** `{{raw .X}}` 把内容原样作为 HTML 输出。仅当内容完全可信时使用；**绝不**对用户可控的数据使用，否则会引入 XSS。
 
 ## i18n
 
@@ -121,6 +125,7 @@ r, _ := httpsrv.TemplatesFS(sub, i.Funcs()) // 把 T 函数注入模板
 ## 错误处理
 
 - 未配置 Views 引擎、模板名不存在、模板执行出错 → `Render` 返回 error → 默认 **500**。
+- 默认 500 响应体为固定文案（`Internal Server Error`），原始 error 通过 `slog` 记录到服务端日志，**不会**回写到客户端，避免泄露模板路径、表达式等内部信息。如需自定义错误响应，用 `WithErrorHandler`。
 - 模板**解析**错误在 `TemplatesDir`/`TemplatesFS` 构造时即返回（fail-fast）。
 
 ## 完整示例
