@@ -56,9 +56,12 @@ app.Get("/files/{*path}", func(c httpsrv.Ctx) error {
 // GET /files/a.txt          ->  path = "a.txt"
 // GET /files/css/main.css   ->  path = "css/main.css"
 // GET /files/deep/nested/x  ->  path = "deep/nested/x"
+// GET /files                ->  path = ""        (empty remainder matches)
+// GET /files/               ->  path = ""        (CleanPath drops the trailing /)
 ```
 
 - The catch-all value has no leading `/` (e.g. `css/main.css`).
+- **An empty remainder matches**: a catch-all matches the rest of the path, including an empty one, so `/files/{*path}` matches `/files` (`path = ""`) and `/*` matches the root `/` (`* = ""`). A plain `{name}` parameter still requires a non-empty value.
 - Besides its named key, a catch-all is also exposed under the conventional key `"*"`, readable via `c.Params("*")` (mirroring fiber's `c.Params("*")` convention).
 - Priority: **static segment > `{name}` parameter > `{*name}` catch-all**, independent of registration order.
 - Nothing may follow `{*name}`; e.g. `/files/{*path}/extra` panics at registration.

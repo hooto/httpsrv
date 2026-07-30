@@ -15,6 +15,7 @@
 package radix
 
 import (
+	"path"
 	"testing"
 )
 
@@ -173,6 +174,27 @@ func TestRouteTreePathClean(t *testing.T) {
 	}
 }
 
+// CleanPath's fast path must match the reference path.Clean("/"+p) exactly,
+// including the tricky cases (double slashes, "."/".." segments, trailing
+// slashes, root, empty). Covers inputs both the fast path accepts and rejects.
+func TestCleanPathEquivalence(t *testing.T) {
+	cases := []string{
+		"", "/", "//", "///", "/a", "/a/", "/a//", "/a/b", "/a/b/",
+		"/.", "/./", "/./a", "/a/.", "/a/./b", "/a/./",
+		"/..", "/../", "/../a", "/a/..", "/a/../b", "/a/b/..", "/a/../",
+		"/a/..b", "/..a", "/a/b/...c", "/.hidden", "/a/./b/../c",
+		"/api/v1/posts/42/comments", "api/v1", "relative/path",
+		"/a/b/c/d/e/f", "/中/文", "/a/./b/./c",
+	}
+	for _, in := range cases {
+		want := path.Clean("/" + in)
+		got := CleanPath(in)
+		if got != want {
+			t.Errorf("CleanPath(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 // Malformed patterns are rejected by Insert and leave the tree untouched.
 func TestRouteTreeInvalidPattern(t *testing.T) {
 	for _, p := range []string{
@@ -260,7 +282,10 @@ func TestRouteTreeCatchAll(t *testing.T) {
 		{"/files/a.txt", "FileHandler", Params{{"path", "a.txt", true}}},
 		{"/files/css/main.css", "FileHandler", Params{{"path", "css/main.css", true}}},
 		{"/files/deep/nested/dir/x", "FileHandler", Params{{"path", "deep/nested/dir/x", true}}},
-		{"/files", "", nil}, // bare prefix (no trailing segment) does not match
+		// A catch-all matches an empty remainder: /files and /files/ both resolve
+		// to path="" (CleanPath drops the trailing slash).
+		{"/files", "FileHandler", Params{{"path", "", true}}},
+		{"/files/", "FileHandler", Params{{"path", "", true}}},
 		{"/other/a.txt", "", nil},
 	})
 }
@@ -324,11 +349,14 @@ func TestRouteTreeUnnamedWildcard(t *testing.T) {
 		})
 	}
 
-	// "/*" does not match the bare root (consistent with named catch-alls).
+	// "/*" also matches the bare root "/": the catch-all accepts an empty
+	// remainder (value "").
 	root := &Node[string]{}
 	mustInsert(t, root, "/*", "H")
-	if _, _, found := root.Search("/", nil); found {
-		t.Fatalf("Search(\"/\"): /* should not match the bare root")
+	h, params, found := root.Search("/", nil)
+	want := Params{{Key: "*", Value: "", CatchAll: true}}
+	if !found || h != "H" || !paramsEqual(params, want) {
+		t.Fatalf("Search(\"/\"): h=%q params=%v found=%v, want %v", h, params, found, want)
 	}
 
 	// A static route beats the unnamed wildcard at the same position.
@@ -356,6 +384,24 @@ func TestRouteTreeCatchAllConflict(t *testing.T) {
 	if !found || h != "Overwritten" || !paramsEqual(params, Params{{"path", "a/b", true}}) {
 		t.Fatalf("Search: h=%q params=%v found=%v", h, params, found)
 	}
+}
+
+// A catch-all matches an empty remainder even when a sibling static route
+// forced a split that left the catch-all behind a lone "/" node. Here /x/{*p}
+// coexists with /xy: /x still resolves to the catch-all (p=""), /xy to its own
+// route, and /x/foo to the catch-all.
+func TestRouteTreeCatchAllEmptyAfterSplit(t *testing.T) {
+	root := &Node[string]{}
+	mustInsert(t, root, "/x/{*p}", "Catch")
+	mustInsert(t, root, "/xy", "XY")
+
+	runSearchTests(t, root, []searchCase{
+		{"/x", "Catch", Params{{"p", "", true}}},
+		{"/x/", "Catch", Params{{"p", "", true}}},
+		{"/x/foo", "Catch", Params{{"p", "foo", true}}},
+		{"/x/a/b", "Catch", Params{{"p", "a/b", true}}},
+		{"/xy", "XY", nil},
+	})
 }
 
 // ---------------------------------------------------------------------------

@@ -65,6 +65,27 @@ func TestRenderBasic(t *testing.T) {
 	}
 }
 
+// TestRenderCustomContentType verifies that a handler-set Content-Type is
+// preserved and not overwritten by Render's default.
+func TestRenderCustomContentType(t *testing.T) {
+	r, err := TemplatesFS(mapFS(map[string]string{
+		"hello.html": `<h1>Hello {{.Name}}</h1>`,
+	}), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	app := New(WithViews(r))
+	app.Get("/h", func(c Ctx) error {
+		c.SetHeader("Content-Type", "application/xhtml+xml; charset=utf-8")
+		return c.Render("hello.html", map[string]string{"Name": "World"})
+	})
+
+	rec := doRouteRec(app, http.MethodGet, "/h")
+	if got := rec.Header().Get("Content-Type"); got != "application/xhtml+xml; charset=utf-8" {
+		t.Fatalf("content-type=%q, want application/xhtml+xml; charset=utf-8", got)
+	}
+}
+
 func TestRenderLayout(t *testing.T) {
 	r, err := TemplatesFS(mapFS(map[string]string{
 		"page.html":   `<p>{{.Name}}</p>`,

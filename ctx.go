@@ -57,15 +57,17 @@ type Ctx interface {
 	FormValue(key string, def ...string) string // body form field (urlencoded or multipart)
 	Bind(out any) error                         // JSON body -> out (json.Unmarshal)
 
-	// Output (Status/SetHeader chain before the body is written)
+	//
+	Translate(locale, key string, args ...any) string // i18n lookup (requires WithI18n)
+
+	// Output (SetHeader/Status chain before the body is written)
+	SetHeader(key, value string) Ctx
 	Status(code int) Ctx
-	SetHeader(key, value string) // response header
 	JSON(v any) error
 	Send(b []byte) error
 	SendString(s string) error
 	Redirect(status int, url string) error
 	Render(name string, bind any, layouts ...string) error // html template render
-	Translate(locale, key string, args ...any) string      // i18n lookup (requires WithI18n)
 
 	// Next runs the next handler in the middleware chain. Middleware call it to
 	// continue; route handlers are terminal and ignore it.
@@ -210,12 +212,19 @@ func (c *ctxImpl) Status(code int) Ctx {
 	return c
 }
 
-func (c *ctxImpl) SetHeader(key, value string) {
+func (c *ctxImpl) SetHeader(key, value string) Ctx {
 	c.w.Header().Set(key, value)
+	return c
 }
 
+// JSON encodes v as JSON and writes it. It sets Content-Type to
+// "application/json; charset=utf-8" only when none has been set yet, so a
+// handler may override it beforehand (e.g. a custom charset or media type like
+// "application/problem+json") via SetHeader.
 func (c *ctxImpl) JSON(v any) error {
-	c.w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	if c.w.Header().Get("Content-Type") == "" {
+		c.w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	}
 	return json.NewEncoder(c.w).Encode(v)
 }
 
@@ -234,14 +243,18 @@ func (c *ctxImpl) Redirect(status int, url string) error {
 	return nil
 }
 
-// Render renders the named template (with optional layouts) and writes it as
-// text/html. Requires a Views engine configured via WithViews.
+// Render renders the named template (with optional layouts) and writes it. It
+// sets Content-Type to "text/html; charset=utf-8" only when none has been set
+// yet, so a handler may override it beforehand (e.g. for XHTML or a custom
+// charset) via SetHeader. Requires a Views engine configured via WithViews.
 func (c *ctxImpl) Render(name string, bind any, layouts ...string) error {
 	v := c.views()
 	if v == nil {
 		return errors.New("httpsrv: no views configured (use WithViews)")
 	}
-	c.w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if c.w.Header().Get("Content-Type") == "" {
+		c.w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	}
 	return v.Render(c.w, name, bind, layouts...)
 }
 

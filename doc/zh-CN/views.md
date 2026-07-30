@@ -64,7 +64,7 @@ app.Get("/users/{id}", func(c httpsrv.Ctx) error {
 - `name`：模板文件相对路径（含扩展名，如 `users/show.html`）。
 - `bind`：绑定到模板的数据。
 - `layouts...`：可选布局模板，见下。
-- 响应自动写为 `text/html; charset=utf-8`。
+- 仅在尚未设置 `Content-Type` 时才写为 `text/html; charset=utf-8`；如需覆盖（例如 XHTML），可在此之前用 `SetHeader` 设置。
 
 ## 布局（layout）
 

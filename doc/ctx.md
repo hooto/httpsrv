@@ -50,6 +50,8 @@ app.Get("/users/{id}", func(c httpsrv.Ctx) error {
 })
 ```
 
+`JSON(v)` sets `Content-Type` to `application/json; charset=utf-8` only when not already set; to use a custom media type or charset (e.g. `application/problem+json`), set it beforehand via `SetHeader`. Likewise, `Render` sets `text/html; charset=utf-8` only when not set.
+
 Query, headers, and body:
 
 ```go

@@ -51,6 +51,8 @@ app.Get("/users/{id}", func(c httpsrv.Ctx) error {
 })
 ```
 
+`JSON(v)` 仅在尚未设置 `Content-Type` 时才写为 `application/json; charset=utf-8`；如需自定义媒体类型或字符集（例如 `application/problem+json`），可在此之前用 `SetHeader` 设置。同理，`Render` 仅在未设置时才写为 `text/html; charset=utf-8`。
+
 查询参数、请求头与 body：
 
 ```go

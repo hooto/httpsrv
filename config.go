@@ -17,7 +17,7 @@ package httpsrv
 import "time"
 
 // Version is the library version.
-const Version = "2.0.0-beta.1"
+const Version = "2.0.0-beta.2"
 
 // Config holds server settings, applied at construction via WithConfig. Zero
 // fields keep the defaults set in New.

@@ -62,7 +62,7 @@ app.Get("/users/{id}", func(c httpsrv.Ctx) error {
 - `name`: the template file's relative path (with extension, e.g. `users/show.html`).
 - `bind`: data bound to the template.
 - `layouts...`: optional layout templates, see below.
-- The response is written as `text/html; charset=utf-8`.
+- Sets `Content-Type` to `text/html; charset=utf-8` only when not already set; set it beforehand via `SetHeader` to override (e.g. for XHTML).
 
 ## Layouts
 

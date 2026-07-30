@@ -20,6 +20,9 @@
 //     remainder under the key "*".
 //   - Static nodes beat params, which beat catch-alls, at the same position —
 //     independent of registration order, so a static route is never shadowed.
+//   - A catch-all matches the rest of the path, including an empty remainder:
+//     /files/{*path} matches /files (path="") and /* matches / (*=""). A
+//     single-segment param still requires a non-empty value.
 //   - A catch-all must be the last segment of a pattern.
 //   - Insert and Search both CleanPath-normalize; both must use the same rule.
 //
@@ -68,8 +71,49 @@ func New[T any]() *Node[T] { return &Node[T]{} }
 // CleanPath normalizes a path: guarantees a leading '/', collapses duplicate
 // slashes, and resolves '.'/'..'. Uses path (not path/filepath) for URL
 // semantics on every platform. Insert and Search must use the same rule.
+//
+// The common case — a path that is already canonical (which net/http guarantees
+// for r.URL.Path, and which holds for every normalized route) — is returned
+// as-is without allocating; only genuinely dirty input falls back to path.Clean.
 func CleanPath(p string) string {
+	if isClean(p) {
+		return p
+	}
 	return path.Clean("/" + p)
+}
+
+// isClean reports whether p is already in CleanPath's canonical form, so that
+// CleanPath("/"+p) == p and the result can be returned without allocating. A
+// canonical path is "/", or a non-empty path starting with '/' whose segments
+// are none of "//", ".", or ".." and which carries no trailing slash.
+func isClean(p string) bool {
+	if p == "/" {
+		return true
+	}
+	if len(p) == 0 || p[0] != '/' {
+		return false
+	}
+	for i := 0; i < len(p); i++ {
+		if p[i] != '/' {
+			continue
+		}
+		// A '/' here. Reject a trailing slash, "//", and the "."/".." segments.
+		if i+1 >= len(p) {
+			return false // trailing slash (p != "/", handled above)
+		}
+		if p[i+1] == '/' {
+			return false // "//"
+		}
+		if p[i+1] == '.' {
+			if i+2 >= len(p) || p[i+2] == '/' {
+				return false // "/." segment
+			}
+			if p[i+2] == '.' && (i+3 >= len(p) || p[i+3] == '/') {
+				return false // "/.." segment
+			}
+		}
+	}
+	return true
 }
 
 // validatePattern checks route pattern syntax. A "{name}" param must:
@@ -327,10 +371,20 @@ func (n *Node[T]) search(path string, params Params) (T, Params, bool) {
 	var zero T
 	if n.kind == nodeStatic {
 		// Static node: must be a full prefix match.
-		if !strings.HasPrefix(path, n.path) {
-			return zero, nil, false
+		if strings.HasPrefix(path, n.path) {
+			path = path[len(n.path):]
+		} else {
+			// A catch-all segment is stored under a static node whose path ends
+			// in the separator "/" (e.g. the "/files/" node holds the {*path}
+			// child of /files/{*path}). A request for the prefix without that
+			// trailing slash ("/files") still reaches the catch-all with an empty
+			// remainder; anything else is a miss.
+			if len(n.path) > 1 && n.path[len(n.path)-1] == '/' && path == n.path[:len(n.path)-1] {
+				path = ""
+			} else {
+				return zero, nil, false
+			}
 		}
-		path = path[len(n.path):]
 	} else if n.kind == nodeParam {
 		// Param matches [^/]+: consume up to the next '/'.
 		end := 0
@@ -352,46 +406,87 @@ func (n *Node[T]) search(path string, params Params) (T, Params, bool) {
 		if n.isWord {
 			return n.handler, params, true
 		}
+		// A catch-all matches an empty remainder too (e.g. /files/{*path} on
+		// /files, or /* on /). A param node is never tried here, so it keeps
+		// requiring a non-empty value.
+		if h, p, found := n.matchEmptyCatchAll(params); found {
+			return h, p, true
+		}
 		return zero, nil, false
 	}
 
-	// Try children: statics first, then params, then catch-alls — so a static
-	// route is never shadowed by a param, and neither by a catch-all
-	// (order-independent).
+	// Try children in priority order — statics before params before catch-alls —
+	// so a static route is never shadowed by a param, and neither by a catch-all
+	// (independent of registration order). A node has at most one param and one
+	// catch-all child, and its static children have distinct first bytes, so a
+	// single pass suffices: try the matching static child first, then the param
+	// child, then the catch-all. (len(path) > 0 here; the empty case returned.)
+	var paramChild, catchChild *Node[T]
 	for _, child := range n.children {
-		if child.kind == nodeStatic && len(path) > 0 && child.path[0] == path[0] {
-			if h, p, found := child.search(path, params); found {
-				return h, p, true
+		switch child.kind {
+		case nodeStatic:
+			if child.path[0] == path[0] {
+				if h, p, found := child.search(path, params); found {
+					return h, p, true
+				}
 			}
+		case nodeParam:
+			paramChild = child
+		case nodeCatchAll:
+			catchChild = child
 		}
 	}
-	for _, child := range n.children {
-		if child.kind == nodeParam {
-			if h, p, found := child.search(path, params); found {
-				return h, p, true
-			}
+	if paramChild != nil {
+		if h, p, found := paramChild.search(path, params); found {
+			return h, p, true
 		}
 	}
-	for _, child := range n.children {
-		if child.kind == nodeCatchAll {
-			// Catch-all consumes the rest of the path (drop the leading "/").
-			rest := path
-			if len(rest) > 0 && rest[0] == '/' {
-				rest = rest[1:]
-			}
-			key := child.path
-			if len(key) >= 3 && key[0] == '{' && key[1] == '*' && key[len(key)-1] == '}' {
-				key = key[2 : len(key)-1] // strip "{*" and "}"
-			}
-			if key == "" { // unnamed "/*" wildcard -> conventional "*" key
-				key = "*"
-			}
-			if child.isWord {
-				return child.handler, append(params, Param{Key: key, Value: rest, CatchAll: true}), true
-			}
-			return zero, nil, false
+	if catchChild != nil {
+		// Catch-all consumes the rest of the path (drop a leading "/").
+		rest := path
+		if rest[0] == '/' {
+			rest = rest[1:]
 		}
+		if catchChild.isWord {
+			return catchChild.handler, append(params, Param{Key: catchAllKey(catchChild.path), Value: rest, CatchAll: true}), true
+		}
+		return zero, nil, false
 	}
 
-	return *new(T), nil, false
+	return zero, nil, false
+}
+
+// catchAllKey extracts the parameter key from a catch-all node's path:
+// "{*name}" -> "name", and the unnamed "{*}" (the "/*" wildcard) -> "*".
+func catchAllKey(p string) string {
+	// Catch-all node paths are always "{*name}" or "{*}".
+	if len(p) >= 3 && p[0] == '{' && p[1] == '*' && p[len(p)-1] == '}' {
+		if k := p[2 : len(p)-1]; k != "" {
+			return k
+		}
+	}
+	return "*" // unnamed "{*}" (the "/*" wildcard) uses the conventional "*" key
+}
+
+// matchEmptyCatchAll matches a catch-all reached with an empty remainder. A
+// catch-all matches the rest of the path — including an empty one — so
+// /files/{*path} matches /files and /* matches /. The catch-all is reachable
+// either as a direct child of n, or behind a lone "/" separator child of n
+// (a "/" node only ever precedes a param/catch-all segment, since CleanPath
+// collapses duplicate slashes).
+func (n *Node[T]) matchEmptyCatchAll(params Params) (T, Params, bool) {
+	var zero T
+	for _, child := range n.children {
+		if child.kind == nodeCatchAll && child.isWord {
+			return child.handler, append(params, Param{Key: catchAllKey(child.path), Value: "", CatchAll: true}), true
+		}
+		if child.kind == nodeStatic && child.path == "/" {
+			for _, gc := range child.children {
+				if gc.kind == nodeCatchAll && gc.isWord {
+					return gc.handler, append(params, Param{Key: catchAllKey(gc.path), Value: "", CatchAll: true}), true
+				}
+			}
+		}
+	}
+	return zero, nil, false
 }

@@ -86,6 +86,49 @@ func TestCtxJSON(t *testing.T) {
 	}
 }
 
+// TestCtxJSONCustomContentType verifies that a handler-set Content-Type is
+// preserved and not overwritten by JSON's default.
+func TestCtxJSONCustomContentType(t *testing.T) {
+	a := New()
+	a.Get("/j", func(c Ctx) error {
+		c.SetHeader("Content-Type", "application/problem+json")
+		return c.JSON(map[string]int{"a": 1})
+	})
+
+	rec := doRouteRec(a, http.MethodGet, "/j")
+	if got := rec.Header().Get("Content-Type"); got != "application/problem+json" {
+		t.Fatalf("content-type=%q, want application/problem+json", got)
+	}
+}
+
+// TestCtxJSONRepeatedContentType verifies that calling SetHeader for
+// Content-Type multiple times (e.g. from middleware then the handler) before
+// JSON does not produce a duplicate Content-Type header and still yields a
+// single, correct value with a valid body.
+func TestCtxJSONRepeatedContentType(t *testing.T) {
+	a := New()
+	a.Use(func(c Ctx) error { // middleware sets it once
+		c.SetHeader("Content-Type", "application/json; charset=utf-8")
+		return c.Next()
+	})
+	a.Get("/j", func(c Ctx) error { // handler sets it again, then JSON
+		c.SetHeader("Content-Type", "application/json; charset=utf-8")
+		return c.JSON(map[string]int{"a": 1})
+	})
+
+	rec := doRouteRec(a, http.MethodGet, "/j")
+	if vals := rec.Header().Values("Content-Type"); len(vals) != 1 {
+		t.Fatalf("Content-Type values=%v, want exactly 1", vals)
+	}
+	if got := rec.Header().Get("Content-Type"); got != "application/json; charset=utf-8" {
+		t.Fatalf("content-type=%q", got)
+	}
+	var m map[string]int
+	if err := json.Unmarshal(rec.Body.Bytes(), &m); err != nil || m["a"] != 1 {
+		t.Fatalf("body=%q err=%v", rec.Body.String(), err)
+	}
+}
+
 func TestCtxStatusSetHeader(t *testing.T) {
 	a := New()
 	a.Get("/teapot", func(c Ctx) error {
@@ -95,6 +138,21 @@ func TestCtxStatusSetHeader(t *testing.T) {
 	rec := doRouteRec(a, http.MethodGet, "/teapot")
 	if rec.Code != 418 || rec.Body.String() != "teapot" || rec.Header().Get("X-Test") != "1" {
 		t.Fatalf("code=%d body=%q X-Test=%q", rec.Code, rec.Body.String(), rec.Header().Get("X-Test"))
+	}
+}
+
+// TestCtxSetHeaderChain verifies SetHeader returns a Ctx so header/status/body
+// can be chained.
+func TestCtxSetHeaderChain(t *testing.T) {
+	a := New()
+	a.Get("/c", func(c Ctx) error {
+		return c.SetHeader("X-A", "1").SetHeader("X-B", "2").Status(201).SendString("ok")
+	})
+	rec := doRouteRec(a, http.MethodGet, "/c")
+	if rec.Code != 201 || rec.Body.String() != "ok" ||
+		rec.Header().Get("X-A") != "1" || rec.Header().Get("X-B") != "2" {
+		t.Fatalf("code=%d body=%q X-A=%q X-B=%q",
+			rec.Code, rec.Body.String(), rec.Header().Get("X-A"), rec.Header().Get("X-B"))
 	}
 }
 

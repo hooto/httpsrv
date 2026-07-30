@@ -56,7 +56,7 @@ app.Get("/static/*", static.New("dist", static.Config{FS: assets})) // 只暴露
 - **显式路由优先**：catch-all（`/*` 与 `{*name}`）是最弱的匹配，静态段与普通参数段都优先于它，因此显式路由天然胜出。
 - **目录不列出**：请求命中目录时返回 404（不做目录索引）。
 - **路径穿越防护**：基于 `http.Dir` 防止逃逸根目录，例如 `/static/../secret` 返回 404。
-- **裸前缀不命中**：`/*` 不会匹配根路径 `/` 本身（与具名 catch-all 一致），需 `/...` 形式。
+- **空剩余也命中**：catch-all 匹配空剩余，故 `/*` 命中根路径 `/`、`/static/*` 命中 `/static`（值为 `""`）。但根/前缀本身是目录，按上一条仍返回 404；如需服务首页，显式注册 `/` 路由。
 - 底层使用标准库 `http.ServeContent`，自动支持 GET/HEAD、Range 请求、`Last-Modified`/`ETag`。
 
 ## 在分组上注册

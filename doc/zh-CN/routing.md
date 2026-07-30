@@ -56,9 +56,12 @@ app.Get("/files/{*path}", func(c httpsrv.Ctx) error {
 // GET /files/a.txt          ->  path = "a.txt"
 // GET /files/css/main.css   ->  path = "css/main.css"
 // GET /files/deep/nested/x  ->  path = "deep/nested/x"
+// GET /files                ->  path = ""        （空剩余也命中）
+// GET /files/               ->  path = ""        （CleanPath 去掉末尾 /）
 ```
 
 - catch-all 的值不含前导 `/`（如 `css/main.css`）。
+- **空剩余也命中**：catch-all 匹配剩余全部内容，空字符串也算，故 `/files/{*path}` 命中 `/files`（`path = ""`），`/*` 命中根路径 `/`（`* = ""`）。普通参数 `{name}` 仍要求非空。
 - 除具名键外，catch-all 还会以约定键 `"*"` 暴露，可用 `c.Params("*")` 读取（对应 fiber 的 `c.Params("*")` 约定）。
 - 优先级：**静态段 > 普通参数 `{name}` > catch-all `{*name}`**，与注册顺序无关。
 - `{*name}` 之后不能再有内容，例如 `/files/{*path}/extra` 注册时会 panic。

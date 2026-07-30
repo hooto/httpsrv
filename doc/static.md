@@ -56,7 +56,7 @@ app.Get("/static/*", static.New("dist", static.Config{FS: assets})) // expose on
 - **Explicit routes win**: the catch-all (`/*` and `{*name}`) is the weakest match — static and parameter segments both beat it, so explicit routes win naturally.
 - **No directory listing**: a request hitting a directory returns 404 (no auto-index).
 - **Path-traversal protection**: based on `http.Dir`, escaping the root is prevented, e.g. `/static/../secret` returns 404.
-- **Bare root does not match**: `/*` does not match the root path `/` itself (consistent with named catch-alls); you need `/...`.
+- **Empty remainder matches**: a catch-all matches an empty remainder, so `/*` matches the root `/` and `/static/*` matches `/static` (value `""`). The root/prefix itself is a directory, so per the rule above it still 404s; register an explicit `/` route to serve an index page.
 - Backed by the stdlib `http.ServeContent`: automatic GET/HEAD, Range requests, `Last-Modified`/`ETag`.
 
 ## Registering on a group
