@@ -115,7 +115,7 @@ app.Use(myMw, func(c httpsrv.Ctx) error { /* ... */ })
 ## Built-in middleware
 
 - `compress.New()` (the `middleware/compress` subpackage): gzip/brotli compression by `Accept-Encoding` (brotli preferred), mirroring gofiber v3's `compress.New`.
-- `httpsrv.AcceptLanguage(def, others...)`: detect the request language from `Accept-Language` (BCP-47, via `x/text`).
+- `httpsrv.AcceptLanguage(def, others...)`: detect the request language from `Accept-Language` (a frozen RFC 5646 subset built into the framework; see [i18n](i18n.md)).
 
 ```go
 import "github.com/hooto/httpsrv/v2/middleware/compress"

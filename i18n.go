@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// i18n — an opt-in module. Not loaded unless attached via WithI18n and/or its
+// i18n - an opt-in module. Not loaded unless attached via WithI18n and/or its
 // Funcs() passed to a template engine. The message structure is the simplest common
 // shape: locale -> key -> text (no singular/plural distinction).
 
@@ -27,7 +27,7 @@ import (
 	"strings"
 	"sync"
 
-	"golang.org/x/text/language"
+	"github.com/hooto/httpsrv/v2/internal/langtag"
 )
 
 // I18n is a locale message store: locale -> key -> text. Construct with
@@ -129,28 +129,26 @@ type localeCtxKey struct{}
 // AcceptLanguage returns middleware that detects the request locale from the
 // Accept-Language header and stores it in the request context (readable via
 // Ctx.Locale). def is the default/fallback; others are additional supported
-// locales. Matching uses golang.org/x/text/language (BCP-47), so an "en-US"
-// request matches a supported "en", and "zh-Hans" matches "zh".
+// locales. Matching is the frozen RFC 5646 subset from internal/langtag: an
+// "en-US" request matches a supported "en", "zh-Hans" matches "zh", ISO 639
+// alternate codes canonicalize ("ger" and "deu" -> "de", "chi" -> "zh"), and
+// macrolanguage family members match their macrolanguage ("nb" -> "no",
+// "yue" -> "zh", "prs" -> "fa"); an unmatched language falls back to def.
+// Among supported locales sharing a language the first registered wins, so
+// register the primary variant first (with AcceptLanguage("en", "zh-Hant",
+// "zh-Hans"), a "zh-CN" request selects "zh-Hant").
 //
 // Register it with Use, e.g. app.Use(httpsrv.AcceptLanguage("en", "zh", "ja")).
 func AcceptLanguage(def string, others ...string) Handler {
-	supported := append([]string{def}, others...)
-	tags := make([]language.Tag, len(supported))
-	for i, s := range supported {
-		t, err := language.Parse(s)
-		if err != nil {
-			panic("httpsrv: invalid locale " + s + ": " + err.Error())
-		}
-		tags[i] = t
+	m, err := langtag.NewMatcher(def, others...)
+	if err != nil {
+		panic("httpsrv: " + err.Error())
 	}
-	matcher := language.NewMatcher(tags) // tags[0] (def) is the default
 	return func(c Ctx) error {
 		r := c.Request()
-		accepted, _, _ := language.ParseAcceptLanguage(r.Header.Get("Accept-Language"))
-		_, idx, _ := matcher.Match(accepted...)
-		loc := supported[idx]
+		loc := m.Match(r.Header.Get("Accept-Language"))
 		ctx := context.WithValue(r.Context(), localeCtxKey{}, loc)
-		c.(*ctxImpl).r = r.WithContext(ctx)
+		c.SetRequest(r.WithContext(ctx))
 		return c.Next()
 	}
 }

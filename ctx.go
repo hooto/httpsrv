@@ -38,6 +38,10 @@ type Ctx interface {
 	// Intended for middleware that wraps the writer (e.g. compression); route
 	// handlers normally do not need it.
 	SetResponse(w http.ResponseWriter)
+	// SetRequest replaces the request for the remainder of the chain.
+	// Intended for middleware that stores request-scoped state in the context
+	// (e.g. AcceptLanguage); route handlers normally do not need it.
+	SetRequest(r *http.Request)
 
 	// Identity
 	Method() string
@@ -108,6 +112,7 @@ func (c *ctxImpl) Next() error {
 func (c *ctxImpl) Request() *http.Request            { return c.r }
 func (c *ctxImpl) Response() http.ResponseWriter     { return c.w }
 func (c *ctxImpl) SetResponse(w http.ResponseWriter) { c.w = w }
+func (c *ctxImpl) SetRequest(r *http.Request)        { c.r = r }
 func (c *ctxImpl) Method() string                    { return c.r.Method }
 func (c *ctxImpl) Path() string                      { return c.r.URL.Path }
 func (c *ctxImpl) IP() string                        { return clientIP(c.r) }

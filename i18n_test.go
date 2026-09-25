@@ -30,8 +30,8 @@ func doLocale(a App, header string) string {
 	return rec.Body.String()
 }
 
-// AcceptLanguage picks the best supported locale (BCP-47 via x/text), falling
-// back to the default.
+// AcceptLanguage picks the best supported locale (RFC 5646 subset via
+// internal/langtag), falling back to the default.
 func TestAcceptLanguageMatch(t *testing.T) {
 	a := New()
 	a.Use(AcceptLanguage("en", "zh", "ja"))
@@ -43,10 +43,33 @@ func TestAcceptLanguageMatch(t *testing.T) {
 	}{
 		{"en-US,en;q=0.9", "en"},
 		{"zh-CN,zh;q=0.9,en;q=0.8", "zh"},
+		{"zh-Hans", "zh"}, // script falls back to language
 		{"ja", "ja"},
 		{"de", "en"},                 // unsupported -> default
 		{"", "en"},                   // no header -> default
 		{"fr;q=0.9, zh;q=0.8", "zh"}, // fr unsupported, zh supported
+	}
+	for _, c := range cases {
+		if got := doLocale(a, c.header); got != c.want {
+			t.Fatalf("Accept-Language %q: locale=%q, want %q", c.header, got, c.want)
+		}
+	}
+}
+
+// The stored locale is the registered spelling: an accepted "nb" selects the
+// registered "no", an accepted "iw" the registered "he". The full matching
+// rule matrix lives in internal/langtag.
+func TestAcceptLanguageFamilyMatch(t *testing.T) {
+	a := New()
+	a.Use(AcceptLanguage("en", "no", "he"))
+	a.Get("/l", func(c Ctx) error { return c.SendString(c.Locale()) })
+
+	cases := []struct {
+		header string
+		want   string
+	}{
+		{"nb-NO,nb;q=0.9", "no"},
+		{"iw,en;q=0.5", "he"},
 	}
 	for _, c := range cases {
 		if got := doLocale(a, c.header); got != c.want {

@@ -115,7 +115,7 @@ app.Use(myMw, func(c httpsrv.Ctx) error { /* ... */ })
 ## 内置中间件
 
 - `compress.New()`（`middleware/compress` 子包）：按 `Accept-Encoding` 启用 gzip/brotli 压缩（brotli 优先），参考 gofiber v3 的 `compress.New`。
-- `httpsrv.AcceptLanguage(def, others...)`：按 `Accept-Language` 探测请求语言（BCP-47，经 `x/text`）。
+- `httpsrv.AcceptLanguage(def, others...)`：按 `Accept-Language` 探测请求语言（框架内实现的 RFC 5646 子集，见 [i18n](i18n.md)）。
 
 ```go
 import "github.com/hooto/httpsrv/v2/middleware/compress"
