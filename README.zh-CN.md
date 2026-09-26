@@ -12,7 +12,7 @@ httpsrv 是一个轻量级、net/http 原生的 Go Web 框架。它提供 Fiber 
 - **静态文件**：`middleware/static` 子包提供 `New(root, ...Config)`，返回 `httpsrv.Handler`：`app.Get("/*", static.New("./public"))` 或 `app.Get("/*", static.New(".", static.Config{FS: embedFS}))`；支持目录或嵌入式文件系统
 - **模板渲染**：`html/template` 一次解析，`Ctx.Render(name, bind, layouts...)`
 - **i18n（可选）**：扁平的 locale 消息存储，`AcceptLanguage` 中间件（内建 RFC 5646 子集匹配）
-- **压缩（可选）**：`middleware/compress` 子包提供 `New(config...)`（按 `Accept-Encoding` 选 gzip/brotli，brotli 优先）
+- **压缩（可选）**：`middleware/compress` 子包提供 `New(config...)`（默认仅内置 gzip，brotli 等可经 `Register` 注入，零第三方依赖）
 - **优雅服务**：安全的默认超时，`Shutdown(ctx)`
 
 ## 文档

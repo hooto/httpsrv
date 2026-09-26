@@ -114,7 +114,7 @@ app.Use(myMw, func(c httpsrv.Ctx) error { /* ... */ })
 
 ## Built-in middleware
 
-- `compress.New()` (the `middleware/compress` subpackage): gzip/brotli compression by `Accept-Encoding` (brotli preferred), mirroring gofiber v3's `compress.New`.
+- `compress.New()` (the `middleware/compress` subpackage): negotiates the response encoding from `Accept-Encoding`. Only gzip is built in (standard library, zero third-party dependencies); further encodings such as brotli or zstd are injected via `compress.Register` (see [server](server.md), Response compression).
 - `httpsrv.AcceptLanguage(def, others...)`: detect the request language from `Accept-Language` (a frozen RFC 5646 subset built into the framework; see [i18n](i18n.md)).
 
 ```go

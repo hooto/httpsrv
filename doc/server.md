@@ -99,7 +99,7 @@ app := httpsrv.New(httpsrv.WithConfig(httpsrv.Config{
 
 ## Response compression (optional)
 
-`middleware/compress`'s `New()` (mirroring gofiber v3's `compress.New`) gzip/brotli-compresses by `Accept-Encoding` (brotli preferred), sets `Content-Encoding`/`Vary`, and drops `Content-Length`:
+`middleware/compress`'s `New()` negotiates the response encoding from `Accept-Encoding`, sets `Content-Encoding`/`Vary`, and drops `Content-Length`. Only gzip is built in (from the standard library, so the module has zero third-party dependencies); further encodings such as brotli or zstd are injected with `Register`, keeping their implementations as dependencies of the application:
 
 ```go
 import "github.com/hooto/httpsrv/v2/middleware/compress"
@@ -109,6 +109,27 @@ app.Use(compress.New(compress.Config{         // or pick a level
     Level: compress.LevelBestCompression,
 }))
 ```
+
+Negotiation: registered encodings are offered in registration order, then the built-in gzip; the client's `Accept-Encoding` weights (q-values) pick the winner, ties go to the earlier offer, and an encoding with `q=0` is never chosen. `Config.Level` applies to the built-in gzip only; encoders added via `Register` carry their own settings in their closures. `Register` must run before `New`: the offer list is fixed when the middleware is constructed.
+
+Wiring up brotli (the application depends on `github.com/andybalholm/brotli` itself):
+
+```go
+import (
+    "io"
+
+    "github.com/andybalholm/brotli"
+    "github.com/hooto/httpsrv/v2/middleware/compress"
+)
+
+func init() {
+    compress.Register("br", func(w io.Writer) io.WriteCloser {
+        return brotli.NewWriterLevel(w, 5) // quality 5: good ratio, fast
+    })
+}
+```
+
+Once registered, `Accept-Encoding: gzip, br` selects `br`.
 
 ## Custom error handling (optional)
 

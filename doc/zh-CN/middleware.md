@@ -114,7 +114,7 @@ app.Use(myMw, func(c httpsrv.Ctx) error { /* ... */ })
 
 ## 内置中间件
 
-- `compress.New()`（`middleware/compress` 子包）：按 `Accept-Encoding` 启用 gzip/brotli 压缩（brotli 优先），参考 gofiber v3 的 `compress.New`。
+- `compress.New()`（`middleware/compress` 子包）：按 `Accept-Encoding` 协商压缩编码。默认仅内置 gzip（标准库实现，零第三方依赖）；brotli、zstd 等编码通过 `compress.Register` 注入，见 [server](server.md) 的响应压缩一节。
 - `httpsrv.AcceptLanguage(def, others...)`：按 `Accept-Language` 探测请求语言（框架内实现的 RFC 5646 子集，见 [i18n](i18n.md)）。
 
 ```go

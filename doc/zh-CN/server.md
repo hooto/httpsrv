@@ -99,7 +99,7 @@ app := httpsrv.New(httpsrv.WithConfig(httpsrv.Config{
 
 ## 响应压缩（可选）
 
-`middleware/compress` 子包的 `New()`（参考 gofiber v3 的 `compress.New`）按 `Accept-Encoding` 自动 gzip/brotli（优先 brotli），并设置 `Content-Encoding`/`Vary`、移除 `Content-Length`：
+`middleware/compress` 子包的 `New()` 按 `Accept-Encoding` 协商压缩编码，并设置 `Content-Encoding`/`Vary`、移除 `Content-Length`。默认仅内置 gzip（标准库实现，模块零第三方依赖）；brotli、zstd 等编码通过 `Register` 注入，压缩实现由应用侧自行依赖：
 
 ```go
 import "github.com/hooto/httpsrv/v2/middleware/compress"
@@ -109,6 +109,27 @@ app.Use(compress.New(compress.Config{         // 或指定级别
     Level: compress.LevelBestCompression,
 }))
 ```
+
+协商规则：已注册编码按注册顺序参与，内置 gzip 最后；客户端 `Accept-Encoding` 的权重（q 值）决定胜者，权重相同时靠前者优先，`q=0` 的编码不会被选用。`Config.Level` 仅作用于内置 gzip；`Register` 注入的编码在闭包中自带级别设置。`Register` 需在 `New` 之前调用，协商选项在中间件构造时固定。
+
+注入 brotli（应用自行依赖 `github.com/andybalholm/brotli`）：
+
+```go
+import (
+    "io"
+
+    "github.com/andybalholm/brotli"
+    "github.com/hooto/httpsrv/v2/middleware/compress"
+)
+
+func init() {
+    compress.Register("br", func(w io.Writer) io.WriteCloser {
+        return brotli.NewWriterLevel(w, 5) // quality 5: 压缩比与速度均衡
+    })
+}
+```
+
+注册后，`Accept-Encoding: gzip, br` 会选择 `br`。
 
 ## 自定义错误处理（可选）
 

@@ -10,7 +10,7 @@ httpsrv is a lightweight, net/http-native Go web framework.
 - **Concise API**: per-method route registration (`Get/Post/Put/...`), `All`, nestable `Group`, `Use` middleware, with chaining.
 - **High-performance radix-tree routing**: exact static segments, `{name}` parameter segments; **static routes take priority over parameter routes** (independent of registration order).
 - **Path parameters**: `{name}` segments are read via `c.Params("name")` (backed by the stdlib `r.PathValue`); no custom Context needed.
-- **Few dependencies**: stdlib only (plus `andybalholm/brotli` for compression); handlers can reuse the stdlib ecosystem and existing middleware directly.
+- **Zero dependencies**: stdlib only; handlers can reuse the stdlib ecosystem and existing middleware directly.
 
 ## Contents
 
